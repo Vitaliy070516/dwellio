@@ -1,0 +1,155 @@
+# Dev-оточення через Laravel Sail.
+# Базові сервіси: laravel.test, pgsql (pgvector), redis, rabbitmq.
+# Важкі сервіси — у profiles: `ollama`, `obs` (див. Makefile: make up-ollama / make up-obs).
+services:
+    laravel.test:
+        build:
+            context: './vendor/laravel/sail/runtimes/8.4'
+            dockerfile: Dockerfile
+            args:
+                WWWGROUP: '${WWWGROUP}'
+        image: 'sail-8.4/app'
+        extra_hosts:
+            - 'host.docker.internal:host-gateway'
+        ports:
+            - '${APP_PORT:-80}:80'
+            - '${VITE_PORT:-5173}:${VITE_PORT:-5173}'
+            - '${REVERB_PORT:-8080}:8080'
+        environment:
+            WWWUSER: '${WWWUSER}'
+            LARAVEL_SAIL: 1
+            XDEBUG_MODE: '${SAIL_XDEBUG_MODE:-off}'
+            XDEBUG_CONFIG: '${SAIL_XDEBUG_CONFIG:-client_host=host.docker.internal}'
+            IGNITION_LOCAL_SITES_PATH: '${PWD}'
+        volumes:
+            - '.:/var/www/html'
+        networks:
+            - sail
+        depends_on:
+            pgsql:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+            rabbitmq:
+                condition: service_healthy
+    pgsql:
+        image: 'pgvector/pgvector:pg18'
+        ports:
+            - '${FORWARD_DB_PORT:-5432}:5432'
+        environment:
+            PGPASSWORD: '${DB_PASSWORD:-secret}'
+            POSTGRES_DB: '${DB_DATABASE}'
+            POSTGRES_USER: '${DB_USERNAME}'
+            POSTGRES_PASSWORD: '${DB_PASSWORD:-secret}'
+        volumes:
+            - 'sail-pgsql:/var/lib/postgresql'
+            - './docker/postgres/10-init-extensions.sql:/docker-entrypoint-initdb.d/10-init-extensions.sql'
+        networks:
+            - sail
+        healthcheck:
+            test: ['CMD', 'pg_isready', '-q', '-d', '${DB_DATABASE}', '-U', '${DB_USERNAME}']
+            retries: 3
+            timeout: 5s
+    redis:
+        image: 'redis:alpine'
+        ports:
+            - '${FORWARD_REDIS_PORT:-6379}:6379'
+        volumes:
+            - 'sail-redis:/data'
+        networks:
+            - sail
+        healthcheck:
+            test: ['CMD', 'redis-cli', 'ping']
+            retries: 3
+            timeout: 5s
+    rabbitmq:
+        image: 'rabbitmq:4-management-alpine'
+        hostname: rabbitmq
+        ports:
+            - '${FORWARD_RABBITMQ_PORT:-5672}:5672'
+            - '${FORWARD_RABBITMQ_DASHBOARD_PORT:-15672}:15672'
+        environment:
+            RABBITMQ_DEFAULT_USER: '${RABBITMQ_USER:-dwellio}'
+            RABBITMQ_DEFAULT_PASS: '${RABBITMQ_PASSWORD:-secret}'
+            RABBITMQ_DEFAULT_VHOST: '${RABBITMQ_VHOST:-/}'
+        volumes:
+            - 'sail-rabbitmq:/var/lib/rabbitmq'
+        networks:
+            - sail
+        healthcheck:
+            test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
+            interval: 10s
+            retries: 5
+            timeout: 10s
+
+    # ---- profile: ollama (локальна LLM + embeddings, $0) ----
+    ollama:
+        profiles: ['ollama']
+        image: 'ollama/ollama:latest'
+        ports:
+            - '${FORWARD_OLLAMA_PORT:-11434}:11434'
+        volumes:
+            - 'sail-ollama:/root/.ollama'
+        networks:
+            - sail
+        mem_limit: 6g
+
+    # ---- profile: obs (Prometheus + Loki + Grafana) ----
+    prometheus:
+        profiles: ['obs']
+        image: 'prom/prometheus:latest'
+        ports:
+            - '${FORWARD_PROMETHEUS_PORT:-9090}:9090'
+        volumes:
+            - './docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro'
+            - 'sail-prometheus:/prometheus'
+        networks:
+            - sail
+        mem_limit: 512m
+    loki:
+        profiles: ['obs']
+        image: 'grafana/loki:latest'
+        command: ['-config.file=/etc/loki/loki-config.yml']
+        ports:
+            - '${FORWARD_LOKI_PORT:-3100}:3100'
+        volumes:
+            - './docker/loki/loki-config.yml:/etc/loki/loki-config.yml:ro'
+            - 'sail-loki:/loki'
+        networks:
+            - sail
+        mem_limit: 512m
+    grafana:
+        profiles: ['obs']
+        image: 'grafana/grafana:latest'
+        ports:
+            - '${FORWARD_GRAFANA_PORT:-3000}:3000'
+        environment:
+            GF_SECURITY_ADMIN_USER: admin
+            GF_SECURITY_ADMIN_PASSWORD: '${GRAFANA_PASSWORD:-admin}'
+        volumes:
+            - './docker/grafana/provisioning:/etc/grafana/provisioning:ro'
+            - 'sail-grafana:/var/lib/grafana'
+        networks:
+            - sail
+        depends_on:
+            - prometheus
+            - loki
+        mem_limit: 512m
+networks:
+    sail:
+        driver: bridge
+volumes:
+    sail-pgsql:
+        driver: local
+    sail-redis:
+        driver: local
+    sail-rabbitmq:
+        driver: local
+    sail-ollama:
+        driver: local
+    sail-prometheus:
+        driver: local
+    sail-loki:
+        driver: local
+    sail-grafana:
+        driver: local

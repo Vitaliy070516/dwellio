@@ -1,0 +1,14 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    # Рівень 8 зараз; піднімаємо до 9 → max, коли з'явиться доменний код.
+    level: 8
+    paths:
+        - app
+        - bootstrap
+        - database
+        - routes
+    # config/ — скелет фреймворку (env() повертає mixed); tests/ — Pest-замикання
+    # з $this, які PHPStan без окремого розширення не розуміє. Покриваємо їх Pest + Pint.
+    tmpDir: storage/framework/phpstan
