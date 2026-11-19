@@ -1,0 +1,38 @@
+stages: [lint, analyse, test]
+
+default:
+  image: php:8.4-cli
+  cache:
+    key:
+      files: [composer.lock]
+    paths: [vendor/]
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq git unzip libpq-dev libicu-dev >/dev/null
+    - docker-php-ext-install pdo_pgsql intl >/dev/null
+    - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+    - composer install --no-interaction --prefer-dist --no-progress
+    - cp .env.example .env && php artisan key:generate
+
+pint:
+  stage: lint
+  script: vendor/bin/pint --test
+
+phpstan:
+  stage: analyse
+  script: vendor/bin/phpstan analyse --memory-limit=1G --no-progress
+
+pest:
+  stage: test
+  services:
+    - name: pgvector/pgvector:pg17
+      alias: pgsql
+  variables:
+    POSTGRES_DB: testing
+    POSTGRES_USER: sail
+    POSTGRES_PASSWORD: password
+    DB_CONNECTION: pgsql
+    DB_HOST: pgsql
+    DB_DATABASE: testing
+    DB_USERNAME: sail
+    DB_PASSWORD: password
+  script: vendor/bin/pest
