@@ -121,30 +121,39 @@ dwellio/
 Межі модулів фіксують Pest Architecture tests: `Search` не імпортує `Generation`, а LLM-клієнт викликається лише з модуля `AI`.
  
 ## 4. План на тиждень 1 (WSL2 Ubuntu, усі команди — через Sail)
+
+> Огляд усіх 6 тижнів — у [`docs/roadmap.md`](roadmap.md).
  
 **День 1 — середовище**
 - `.wslconfig` (16 ГБ RAM на машині): `memory=10GB`, `swap=4GB`, `processors` — половина ядер. Windows лишається ~6 ГБ.
 - Laravel 13 + Sail у `~/projects/test-tasks/ai/dwellio`; `compose.yaml` з Postgres (`pgvector/pgvector`), Redis, RabbitMQ. Observability та Ollama — в окремих `profiles`.
 - Larastan (рівень 8 → max), Pint, Pest, `Makefile`.
+
 **День 2 — CI і дзеркало**
 - `ci.yml`: Pint → PHPStan → Pest.
 - GitLab Free: порожній проєкт, Project Access Token у GitHub Secrets, `mirror-gitlab.yml` з `git push --force` у GitLab.
 - `.gitlab-ci.yml` з тими самими стадіями.
+
 **День 3 — домен**
 - Міграції: `listings`, `listing_embeddings` (`vector`, HNSW-індекс, `embedding_model`), сидер на 200–500 квартир.
 - CRUD через Actions + DTO, перші Feature-тести.
+
 **День 4 — AI-шар**
 - ADR: Prism чи Laravel AI SDK. Драйвер через `.env` (Ollama локально, Fake у тестах).
 - Job `IndexListingEmbedding` через RabbitMQ: retry з backoff, DLQ, ідемпотентність за хешем тексту.
+
 **День 5 — пошук**
 - `ParseSearchQuery` (Structured Output → DTO фільтрів) + hybrid search з RRF.
 - Тести: невалідний JSON від LLM, порожній результат, падіння провайдера → fallback на чисті SQL-фільтри.
+
 **День 6 — генерація і real-time**
 - `GenerateListingAd` job → стрімінг → broadcast у приватний канал Reverb (чанки батчами по ~100 мс).
 - Мінімальна сторінка з Echo.
+
 **День 7 — безпека і документація**
 - Rate limiting і облік токенів у Redis, README з діаграмою, ADR-001…004.
 - AWS цього тижня — лише підготовка: каркас Terraform (`terraform validate` без акаунта) і чеклист старту на тиждень 3–4.
+
 **Чеклист безпечного старту в AWS (тиждень 3–4, новий акаунт на Free Plan)**
 1. Реєстрація на Free Plan; root — лише для білінгу, одразу MFA.
 2. IAM Identity Center або IAM-користувач із least privilege для Terraform; жодних access keys у root.
