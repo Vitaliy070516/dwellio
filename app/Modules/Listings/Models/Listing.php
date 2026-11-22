@@ -7,7 +7,10 @@ namespace App\Modules\Listings\Models;
 use App\Modules\Listings\Enums\District;
 use App\Modules\Listings\Enums\ListingStatus;
 use Carbon\CarbonImmutable;
+use Database\Factories\ListingFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\UseFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -39,9 +42,12 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'district', 'address', 'metro_station', 'metro_distance_m', 'lat', 'lng',
     'pets_allowed', 'furnished', 'status',
 ])]
+// Модель живе в App\Modules\..., тож Laravel не вгадає фабрику за іменем — вказуємо явно.
+#[UseFactory(ListingFactory::class)]
 class Listing extends Model
 {
-    use SoftDeletes;
+    /** @use HasFactory<ListingFactory> */
+    use HasFactory, SoftDeletes;
 
     /**
      * @return array<string, string>
