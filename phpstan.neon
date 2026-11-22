@@ -2,8 +2,8 @@ includes:
     - vendor/larastan/larastan/extension.neon
 
 parameters:
-    # Рівень 8 зараз; піднімаємо до 9 → max, коли з'явиться доменний код.
-    level: 8
+    # Рівень max: доменний код уже є, `[review]` Дня 3 підтвердив 0 помилок.
+    level: max
     paths:
         - app
         - bootstrap

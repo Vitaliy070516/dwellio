@@ -21,14 +21,17 @@ final class ListingController extends Controller
 {
     public function index(): AnonymousResourceCollection
     {
-        // orderByDesc('id') + paginate: детермінований порядок, без OFFSET-сюрпризів на дублікатах дат.
+        // searchable(): чернетки й архів не публічні. orderByDesc('id') + paginate: детермінований порядок.
         return ListingResource::collection(
-            Listing::query()->orderByDesc('id')->paginate(20),
+            Listing::query()->searchable()->orderByDesc('id')->paginate(20),
         );
     }
 
     public function show(Listing $listing): ListingResource
     {
+        // 404, а не 403: не розкриваємо, що чернетка з таким id існує.
+        abort_unless($listing->status->isSearchable(), 404);
+
         return new ListingResource($listing);
     }
 

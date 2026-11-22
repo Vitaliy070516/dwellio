@@ -14,21 +14,24 @@ use App\Modules\Listings\Enums\ListingStatus;
  * @phpstan-type ListingInput array{
  *     title: string,
  *     description: string,
- *     price_uah: int,
- *     rooms: int,
+ *     price_uah: int|numeric-string,
+ *     rooms: int|numeric-string,
  *     area_m2: int|float|numeric-string,
- *     floor: int,
- *     floors_total: int,
+ *     floor: int|numeric-string,
+ *     floors_total: int|numeric-string,
  *     district: string,
  *     address: string,
  *     metro_station?: string|null,
- *     metro_distance_m?: int|null,
+ *     metro_distance_m?: int|numeric-string|null,
  *     lat?: int|float|numeric-string|null,
  *     lng?: int|float|numeric-string|null,
- *     pets_allowed?: bool,
- *     furnished?: bool,
+ *     pets_allowed?: bool|int|string,
+ *     furnished?: bool|int|string,
  *     status?: string,
  * }
+ *
+ * Валідатор НЕ приводить типи: form-encoded запит дає рядки ("18000", "1"),
+ * а конструктор під strict_types їх не прийме. Тому всі касти — тут, в одному місці.
  */
 final readonly class ListingData
 {
@@ -59,19 +62,19 @@ final readonly class ListingData
         return new self(
             title: $data['title'],
             description: $data['description'],
-            priceUah: $data['price_uah'],
-            rooms: $data['rooms'],
+            priceUah: (int) $data['price_uah'],
+            rooms: (int) $data['rooms'],
             areaM2: (float) $data['area_m2'],
-            floor: $data['floor'],
-            floorsTotal: $data['floors_total'],
+            floor: (int) $data['floor'],
+            floorsTotal: (int) $data['floors_total'],
             district: District::from($data['district']),
             address: $data['address'],
             metroStation: $data['metro_station'] ?? null,
-            metroDistanceM: $data['metro_distance_m'] ?? null,
+            metroDistanceM: isset($data['metro_distance_m']) ? (int) $data['metro_distance_m'] : null,
             lat: isset($data['lat']) ? (float) $data['lat'] : null,
             lng: isset($data['lng']) ? (float) $data['lng'] : null,
-            petsAllowed: $data['pets_allowed'] ?? false,
-            furnished: $data['furnished'] ?? false,
+            petsAllowed: filter_var($data['pets_allowed'] ?? false, FILTER_VALIDATE_BOOL),
+            furnished: filter_var($data['furnished'] ?? false, FILTER_VALIDATE_BOOL),
             status: isset($data['status']) ? ListingStatus::from($data['status']) : ListingStatus::Draft,
         );
     }

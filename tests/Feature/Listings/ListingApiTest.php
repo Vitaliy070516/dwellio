@@ -34,7 +34,7 @@ function listingPayload(array $overrides = []): array
 
 describe('GET /api/listings', function (): void {
     it('returns the newest listings first, 20 per page', function (): void {
-        $listings = Listing::factory()->count(25)->create();
+        $listings = Listing::factory()->count(25)->active()->create();
 
         $this->getJson('/api/listings')
             ->assertOk()
@@ -48,13 +48,24 @@ describe('GET /api/listings', function (): void {
     });
 
     it('does not return soft-deleted listings', function (): void {
-        $kept = Listing::factory()->create();
-        Listing::factory()->create()->delete();
+        $kept = Listing::factory()->active()->create();
+        Listing::factory()->active()->create()->delete();
 
         $this->getJson('/api/listings')
             ->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.id', $kept->id);
+    });
+
+    it('hides drafts and archived listings', function (): void {
+        $active = Listing::factory()->active()->create();
+        Listing::factory()->draft()->create();
+        Listing::factory()->archived()->create();
+
+        $this->getJson('/api/listings')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $active->id);
     });
 
     it('returns an empty page when there are no listings', function (): void {
@@ -86,6 +97,12 @@ describe('GET /api/listings/{id}', function (): void {
     it('returns 404 for a missing listing', function (): void {
         $this->getJson('/api/listings/999999')->assertNotFound();
     });
+
+    it('returns 404 for a draft or archived listing', function (string $state): void {
+        $listing = Listing::factory()->{$state}()->create();
+
+        $this->getJson("/api/listings/{$listing->id}")->assertNotFound();
+    })->with(['draft', 'archived']);
 
     it('returns 404 for a soft-deleted listing', function (): void {
         $listing = Listing::factory()->create();
@@ -123,6 +140,24 @@ describe('POST /api/listings', function (): void {
             ->assertJsonPath('data.furnished', false)
             ->assertJsonPath('data.metro_station', null)
             ->assertJsonPath('data.lat', null);
+    });
+
+    it('accepts form-encoded input where every value arrives as a string', function (): void {
+        $this->post('/api/listings', [
+            ...listingPayload(),
+            'price_uah' => '18000',
+            'rooms' => '2',
+            'area_m2' => '54.5',
+            'floor' => '3',
+            'floors_total' => '9',
+            'metro_distance_m' => '400',
+            'pets_allowed' => '1',
+            'furnished' => '0',
+        ], ['Accept' => 'application/json'])
+            ->assertCreated()
+            ->assertJsonPath('data.price_uah', 18000)
+            ->assertJsonPath('data.pets_allowed', true)
+            ->assertJsonPath('data.furnished', false);
     });
 
     it('returns JSON validation errors even without an Accept header', function (): void {

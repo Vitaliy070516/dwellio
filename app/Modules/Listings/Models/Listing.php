@@ -9,7 +9,9 @@ use App\Modules\Listings\Enums\ListingStatus;
 use Carbon\CarbonImmutable;
 use Database\Factories\ListingFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Attributes\UseFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -63,6 +65,17 @@ class Listing extends Model
             'pets_allowed' => 'boolean',
             'furnished' => 'boolean',
         ];
+    }
+
+    /**
+     * Лише квартири, видимі публічно й у пошуку (єдине джерело правди — ListingStatus::isSearchable()).
+     *
+     * @param  Builder<Listing>  $query
+     */
+    #[Scope]
+    protected function searchable(Builder $query): void
+    {
+        $query->where('status', ListingStatus::Active);
     }
 
     /**

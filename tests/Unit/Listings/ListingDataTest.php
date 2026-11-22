@@ -40,6 +40,25 @@ it('casts string coordinates to floats', function (): void {
     expect($data->lat)->toBe(50.45)->and($data->lng)->toBe(30.52);
 });
 
+it('casts string numbers and boolean flags from form-encoded input', function (): void {
+    $data = ListingData::fromValidated([
+        ...minimalListingInput(),
+        'price_uah' => '15000',
+        'rooms' => '2',
+        'floor' => '3',
+        'floors_total' => '9',
+        'metro_distance_m' => '350',
+        'pets_allowed' => '1',
+        'furnished' => 'false',
+    ]);
+
+    expect($data->priceUah)->toBe(15000)
+        ->and($data->rooms)->toBe(2)
+        ->and($data->metroDistanceM)->toBe(350)
+        ->and($data->petsAllowed)->toBeTrue()
+        ->and($data->furnished)->toBeFalse();
+});
+
 it('rejects an unknown district or status instead of silently accepting it', function (): void {
     expect(fn () => ListingData::fromValidated([...minimalListingInput(), 'district' => 'atlantis']))
         ->toThrow(ValueError::class);
