@@ -2,7 +2,7 @@
 SAIL := ./vendor/bin/sail
 
 .DEFAULT_GOAL := help
-.PHONY: help up up-ollama up-obs up-all down test stan pint pint-check artisan shell composer check
+.PHONY: help up up-ollama up-obs up-all down test stan pint pint-check artisan shell composer check queue-setup worker
 
 help: ## Список команд
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-12s\033[0m %s\n",$$1,$$2}'
@@ -35,6 +35,12 @@ pint-check: ## Pint без змін файлів (для CI)
 	$(SAIL) pint --test
 
 check: pint-check stan test ## Pint → PHPStan → Pest
+
+queue-setup: ## RabbitMQ: failed-exchange, DLQ і прив'язки (ідемпотентно)
+	$(SAIL) artisan dwellio:rabbitmq-setup
+
+worker: ## Воркер черги embeddings (queue:work; rabbitmq:consume не використовуємо)
+	$(SAIL) artisan queue:work rabbitmq --queue=embeddings --tries=3 --backoff=5
 
 artisan: ## make artisan c="migrate:status"
 	$(SAIL) artisan $(c)

@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+use PhpAmqpLib\Connection\AMQPStreamConnection;
 
 return [
 
@@ -73,6 +74,36 @@ return [
             'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 90),
             'block_for' => null,
             'after_commit' => false,
+        ],
+
+        'rabbitmq' => [
+            'driver' => 'rabbitmq',
+            'queue' => env('RABBITMQ_QUEUE', 'default'),
+            'connection' => AMQPStreamConnection::class,
+
+            'hosts' => [
+                [
+                    'host' => env('RABBITMQ_HOST', 'rabbitmq'),
+                    'port' => (int) env('RABBITMQ_PORT', 5672),
+                    'user' => env('RABBITMQ_USER', 'guest'),
+                    'password' => env('RABBITMQ_PASSWORD', 'guest'),
+                    'vhost' => env('RABBITMQ_VHOST', '/'),
+                ],
+            ],
+
+            'options' => [
+                'queue' => [
+                    // Job, що вичерпав спроби, відхиляється (reject) і через DLX потрапляє
+                    // в чергу "<queue>.failed" — її видно в RabbitMQ UI і можна перепрогнати.
+                    // Обмін і прив'язки створює `php artisan dwellio:rabbitmq-setup`.
+                    'reroute_failed' => true,
+                    'failed_exchange' => env('RABBITMQ_FAILED_EXCHANGE', 'dwellio.failed'),
+                    'failed_routing_key' => '%s.failed',
+                ],
+            ],
+
+            // Job ставиться в чергу лише після коміту транзакції, щоб воркер не побачив неіснуючий запис.
+            'after_commit' => true,
         ],
 
         'deferred' => [
