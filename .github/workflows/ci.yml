@@ -41,7 +41,8 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-          extensions: pdo_pgsql, redis, mbstring, intl
+          # Перелік явний і збігається з .gitlab-ci.yml: sockets потрібен php-amqplib (RabbitMQ).
+          extensions: pdo_pgsql, redis, mbstring, intl, sockets
           coverage: none
 
       - name: Composer cache
