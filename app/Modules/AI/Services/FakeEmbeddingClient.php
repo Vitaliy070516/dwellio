@@ -26,6 +26,11 @@ final class FakeEmbeddingClient implements EmbeddingClient
         private readonly string $model = 'fake-embedding',
     ) {}
 
+    public function model(): string
+    {
+        return $this->model;
+    }
+
     public function embed(string $text): Embedding
     {
         if ($this->nextFailure !== null) {

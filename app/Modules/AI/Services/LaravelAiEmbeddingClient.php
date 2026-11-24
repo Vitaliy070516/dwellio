@@ -25,6 +25,11 @@ final readonly class LaravelAiEmbeddingClient implements EmbeddingClient
         private int $timeout = 30,
     ) {}
 
+    public function model(): string
+    {
+        return $this->model;
+    }
+
     public function embed(string $text): Embedding
     {
         if (trim($text) === '') {

@@ -15,6 +15,12 @@ use App\Modules\AI\Exceptions\InvalidEmbeddingException;
 interface EmbeddingClient
 {
     /**
+     * Модель, яка рахуватиме вектори. Потрібна ДО виклику: за нею шукаємо вже збережений
+     * ембединг і вирішуємо, чи можна пропустити платний запит (ідемпотентність за хешем).
+     */
+    public function model(): string;
+
+    /**
      * @throws EmbeddingFailedException якщо збій тимчасовий (мережа, 5xx, ліміти): Job може повторити спробу
      * @throws InvalidEmbeddingException якщо повтор не допоможе (порожній текст, неправильна розмірність)
      */

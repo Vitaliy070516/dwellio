@@ -24,6 +24,11 @@ arch('Listings models do not depend on the HTTP layer')
     ->expect('App\Modules\Listings\Models')
     ->not->toUse('App\Modules\Listings\Http');
 
+arch('Listings jobs are queued and know nothing about HTTP')
+    ->expect('App\Modules\Listings\Jobs')
+    ->toImplement('Illuminate\Contracts\Queue\ShouldQueue')
+    ->not->toUse(['Illuminate\Http', 'App\Modules\Listings\Http']);
+
 arch('Listings controllers are thin: no direct DB facade')
     ->expect('App\Modules\Listings\Http\Controllers')
     ->not->toUse('Illuminate\Support\Facades\DB');
