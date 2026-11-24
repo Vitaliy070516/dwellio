@@ -33,6 +33,16 @@ function insertEmbedding(int $listingId, string $vector, string $model = 'bge-m3
     });
 }
 
+it('keeps the configured embedding dimensions in sync with the vector column', function (): void {
+    $column = DB::selectOne(
+        "SELECT atttypmod AS dims FROM pg_attribute WHERE attrelid = 'listing_embeddings'::regclass AND attname = 'embedding'",
+    );
+
+    // Для типу vector atttypmod і є N у vector(N).
+    expect($column)->not->toBeNull()
+        ->and($column->dims)->toBe(config('dwellio.ai.embeddings.dimensions'));
+});
+
 it('rejects a vector with the wrong dimensionality', function (): void {
     $listing = Listing::factory()->create();
 
