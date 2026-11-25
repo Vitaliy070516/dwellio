@@ -26,6 +26,25 @@ return [
             'dimensions' => 1024,
             'timeout' => (int) env('AI_EMBEDDING_TIMEOUT', 30),
         ],
+
+        // Чат-модель для Structured Output (парсинг пошукового запиту у фільтри).
+        // Локально: Ollama з моделлю, що вміє JSON-схеми; у проді: Claude Haiku.
+        'llm' => [
+            'driver' => env('AI_LLM_DRIVER', 'laravel-ai'),
+            'provider' => env('AI_LLM_PROVIDER', 'ollama'),
+            'model' => env('AI_LLM_MODEL', 'qwen2.5:3b'),
+            // Парсинг запиту стоїть на гарячому шляху пошуку: довго чекати не можна, є fallback.
+            'timeout' => (int) env('AI_LLM_TIMEOUT', 10),
+        ],
+    ],
+
+    'search' => [
+        // Скільки кандидатів бере кожна гілка (вектор / FTS / trigram) перед злиттям RRF.
+        'candidates' => 50,
+        // Стала RRF: 60 — канонічне значення з оригінальної статті.
+        'rrf_k' => 60,
+        'per_page' => 20,
+        'query_embedding_ttl' => 86400,
     ],
 
 ];

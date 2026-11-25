@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace App\Modules\AI;
 
 use App\Modules\AI\Contracts\EmbeddingClient;
+use App\Modules\AI\Contracts\StructuredOutputClient;
 use App\Modules\AI\Services\FakeEmbeddingClient;
+use App\Modules\AI\Services\FakeStructuredOutputClient;
 use App\Modules\AI\Services\LaravelAiEmbeddingClient;
+use App\Modules\AI\Services\LaravelAiStructuredOutputClient;
 use Illuminate\Support\ServiceProvider;
 use InvalidArgumentException;
 
@@ -29,6 +32,22 @@ final class AIServiceProvider extends ServiceProvider
                 ),
                 default => throw new InvalidArgumentException(
                     sprintf('Unknown AI embedding driver "%s". Use "laravel-ai" or "fake".', $driver),
+                ),
+            };
+        });
+
+        $this->app->singleton(StructuredOutputClient::class, function (): StructuredOutputClient {
+            $driver = config()->string('dwellio.ai.llm.driver');
+
+            return match ($driver) {
+                'fake' => new FakeStructuredOutputClient,
+                'laravel-ai' => new LaravelAiStructuredOutputClient(
+                    provider: config()->string('dwellio.ai.llm.provider'),
+                    model: config()->string('dwellio.ai.llm.model'),
+                    timeout: config()->integer('dwellio.ai.llm.timeout'),
+                ),
+                default => throw new InvalidArgumentException(
+                    sprintf('Unknown AI LLM driver "%s". Use "laravel-ai" or "fake".', $driver),
                 ),
             };
         });

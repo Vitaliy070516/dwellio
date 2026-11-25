@@ -6,9 +6,19 @@ arch('AI contracts are interfaces')
     ->expect('App\Modules\AI\Contracts')
     ->toBeInterfaces();
 
-arch('AI services implement the embedding contract')
-    ->expect('App\Modules\AI\Services')
+arch('AI embedding services implement the embedding contract')
+    ->expect([
+        'App\Modules\AI\Services\FakeEmbeddingClient',
+        'App\Modules\AI\Services\LaravelAiEmbeddingClient',
+    ])
     ->toImplement('App\Modules\AI\Contracts\EmbeddingClient');
+
+arch('AI structured-output services implement the structured-output contract')
+    ->expect([
+        'App\Modules\AI\Services\FakeStructuredOutputClient',
+        'App\Modules\AI\Services\LaravelAiStructuredOutputClient',
+    ])
+    ->toImplement('App\Modules\AI\Contracts\StructuredOutputClient');
 
 arch('AI DTOs are immutable')
     ->expect('App\Modules\AI\DTO')
