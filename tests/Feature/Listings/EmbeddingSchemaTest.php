@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Modules\AI\DTO\Embedding;
 use App\Modules\Listings\Models\Listing;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -92,4 +93,13 @@ it('builds the embedding source from title and description', function (): void {
     $listing = Listing::factory()->make(['title' => 'Заголовок', 'description' => 'Опис квартири']);
 
     expect($listing->embeddingSource())->toBe("Заголовок\nОпис квартири");
+});
+
+it('accepts PHP float notation (tiny, huge, negative zero) in a pgvector literal', function (): void {
+    $listing = Listing::factory()->create();
+    $vector = array_pad([1.0E-7, -1.0E-30, 123456789.0, -0.0, 0.1 + 0.2], 1024, 0.0);
+
+    insertEmbedding($listing->id, (new Embedding($vector, 'm'))->toPgVector());
+
+    expect(DB::selectOne('SELECT vector_dims(embedding) AS dims FROM listing_embeddings')->dims)->toBe(1024);
 });

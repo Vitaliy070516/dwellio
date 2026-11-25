@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use App\Modules\AI\Exceptions\EmbeddingFailedException;
+use App\Modules\AI\Services\FakeEmbeddingClient;
+use App\Modules\Listings\Actions\EmbedListing;
 use App\Modules\Listings\Enums\ListingStatus;
 use App\Modules\Listings\Jobs\IndexListingEmbedding;
 use App\Modules\Listings\Models\Listing;
@@ -118,6 +120,23 @@ describe('on update', function (): void {
         Queue::assertNotPushed(IndexListingEmbedding::class);
     });
 
+    it('does not pay again when a listing is unpublished and published back unchanged', function (): void {
+        $listing = Listing::factory()->active()->create();
+        IndexListingEmbedding::dispatchSync($listing->id);
+
+        foreach (['archived', 'active'] as $status) {
+            $this->putJson("/api/listings/{$listing->id}", listingPayload([
+                'title' => $listing->title,
+                'description' => $listing->description,
+                'status' => $status,
+            ]))->assertOk();
+        }
+
+        // Republish ставить Job, але хеш тексту той самий, тож провайдера не викликано вдруге.
+        expect(fakeEmbeddingClient()->embeddedTexts())->toHaveCount(1);
+        $this->assertDatabaseCount('listing_embeddings', 1);
+    });
+
     it('replaces the stored vector end to end when the text changes', function (): void {
         $listing = Listing::factory()->active()->create();
         IndexListingEmbedding::dispatchSync($listing->id);
@@ -181,5 +200,36 @@ describe('listings:reindex', function (): void {
         $this->artisan('listings:reindex')->assertSuccessful();
 
         $this->assertDatabaseCount('listing_embeddings', 3);
+    });
+
+    it('does not skip or duplicate listings across chunk boundaries (200 per chunk)', function (): void {
+        Listing::factory()->active()->count(401)->create();
+        Queue::fake();
+
+        $this->artisan('listings:reindex')->expectsOutputToContain('Queued 401 listing(s)')->assertSuccessful();
+
+        Queue::assertPushed(IndexListingEmbedding::class, 401);
+        $ids = Queue::pushed(IndexListingEmbedding::class)->map(fn (IndexListingEmbedding $job): int => $job->listingId);
+        expect($ids->unique())->toHaveCount(401);
+    });
+
+    it('ignores soft-deleted listings', function (): void {
+        Listing::factory()->active()->create();
+        Listing::factory()->active()->create()->delete();
+        Queue::fake();
+
+        $this->artisan('listings:reindex', ['--all' => true])->expectsOutputToContain('Queued 1 listing(s)');
+
+        Queue::assertPushed(IndexListingEmbedding::class, 1);
+    });
+
+    it('queues a listing again when only another model has been embedded', function (): void {
+        $listing = Listing::factory()->active()->create();
+        (new EmbedListing(new FakeEmbeddingClient(1024, model: 'old-model')))->handle($listing);
+        Queue::fake();
+
+        $this->artisan('listings:reindex')->expectsOutputToContain('Queued 1 listing(s) for model "fake-embedding"');
+
+        Queue::assertPushed(IndexListingEmbedding::class, 1);
     });
 });
