@@ -7,10 +7,16 @@ namespace App\Modules\Listings\Actions;
 use App\Modules\Listings\DTO\ListingData;
 use App\Modules\Listings\Models\Listing;
 
-final class CreateListing
+final readonly class CreateListing
 {
+    public function __construct(private ScheduleListingEmbedding $scheduleEmbedding) {}
+
     public function handle(ListingData $data): Listing
     {
-        return Listing::query()->create($data->toAttributes());
+        $listing = Listing::query()->create($data->toAttributes());
+
+        $this->scheduleEmbedding->handle($listing);
+
+        return $listing;
     }
 }

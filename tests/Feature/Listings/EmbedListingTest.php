@@ -2,21 +2,12 @@
 
 declare(strict_types=1);
 
-use App\Modules\AI\Contracts\EmbeddingClient;
 use App\Modules\AI\Exceptions\EmbeddingFailedException;
 use App\Modules\AI\Services\FakeEmbeddingClient;
 use App\Modules\Listings\Actions\EmbedListing;
 use App\Modules\Listings\Enums\EmbedOutcome;
 use App\Modules\Listings\Models\Listing;
 use Illuminate\Support\Facades\DB;
-
-function fakeEmbeddingClient(): FakeEmbeddingClient
-{
-    $client = app(EmbeddingClient::class);
-    assert($client instanceof FakeEmbeddingClient);
-
-    return $client;
-}
 
 it('embeds an active listing and stores model, hash and a 1024-dim vector', function (): void {
     $listing = Listing::factory()->active()->create();

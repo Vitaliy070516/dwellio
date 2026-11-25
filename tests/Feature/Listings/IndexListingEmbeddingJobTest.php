@@ -2,24 +2,14 @@
 
 declare(strict_types=1);
 
-use App\Modules\AI\Contracts\EmbeddingClient;
 use App\Modules\AI\Exceptions\EmbeddingFailedException;
 use App\Modules\AI\Exceptions\InvalidEmbeddingException;
-use App\Modules\AI\Services\FakeEmbeddingClient;
 use App\Modules\Listings\Actions\EmbedListing;
 use App\Modules\Listings\Jobs\IndexListingEmbedding;
 use App\Modules\Listings\Models\Listing;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
-
-function embeddingFake(): FakeEmbeddingClient
-{
-    $client = app(EmbeddingClient::class);
-    assert($client instanceof FakeEmbeddingClient);
-
-    return $client;
-}
 
 it('indexes the listing when run', function (): void {
     $listing = Listing::factory()->active()->create();
@@ -44,14 +34,14 @@ it('is idempotent: a duplicate message does not duplicate rows or provider calls
     IndexListingEmbedding::dispatchSync($listing->id);
 
     $this->assertDatabaseCount('listing_embeddings', 1);
-    expect(embeddingFake()->embeddedTexts())->toHaveCount(1);
+    expect(fakeEmbeddingClient()->embeddedTexts())->toHaveCount(1);
 });
 
 it('quietly does nothing when the listing no longer exists', function (): void {
     IndexListingEmbedding::dispatchSync(999999);
 
     $this->assertDatabaseCount('listing_embeddings', 0);
-    expect(embeddingFake()->embeddedTexts())->toBe([]);
+    expect(fakeEmbeddingClient()->embeddedTexts())->toBe([]);
 });
 
 it('does nothing for a listing deleted while the job was queued', function (): void {
@@ -61,12 +51,12 @@ it('does nothing for a listing deleted while the job was queued', function (): v
     IndexListingEmbedding::dispatchSync($listing->id);
 
     $this->assertDatabaseCount('listing_embeddings', 0);
-    expect(embeddingFake()->embeddedTexts())->toBe([]);
+    expect(fakeEmbeddingClient()->embeddedTexts())->toBe([]);
 });
 
 it('rethrows a transient provider failure so the worker retries with backoff', function (): void {
     $listing = Listing::factory()->active()->create();
-    embeddingFake()->failNextWith(new EmbeddingFailedException('timeout'));
+    fakeEmbeddingClient()->failNextWith(new EmbeddingFailedException('timeout'));
 
     $job = (new IndexListingEmbedding($listing->id))->withFakeQueueInteractions();
 
@@ -77,7 +67,7 @@ it('rethrows a transient provider failure so the worker retries with backoff', f
 
 it('fails permanently, without retries, on an invalid embedding', function (): void {
     $listing = Listing::factory()->active()->create();
-    embeddingFake()->failNextWith(new InvalidEmbeddingException('wrong dimensions'));
+    fakeEmbeddingClient()->failNextWith(new InvalidEmbeddingException('wrong dimensions'));
 
     $job = (new IndexListingEmbedding($listing->id))->withFakeQueueInteractions();
     $job->handle(app(EmbedListing::class));

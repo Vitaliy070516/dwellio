@@ -6,32 +6,6 @@ use App\Modules\Listings\Enums\District;
 use App\Modules\Listings\Enums\ListingStatus;
 use App\Modules\Listings\Models\Listing;
 
-/**
- * @param  array<string, mixed>  $overrides
- * @return array<string, mixed>
- */
-function listingPayload(array $overrides = []): array
-{
-    return array_merge([
-        'title' => 'Затишна 2-кімнатна на Подолі',
-        'description' => 'Світла квартира біля метро, можна з котом.',
-        'price_uah' => 18000,
-        'rooms' => 2,
-        'area_m2' => 54.5,
-        'floor' => 3,
-        'floors_total' => 9,
-        'district' => 'podilskyi',
-        'address' => 'вул. Сковороди, 10',
-        'metro_station' => 'Контрактова площа',
-        'metro_distance_m' => 400,
-        'lat' => 50.4658,
-        'lng' => 30.5154,
-        'pets_allowed' => true,
-        'furnished' => true,
-        'status' => 'active',
-    ], $overrides);
-}
-
 describe('GET /api/listings', function (): void {
     it('returns the newest listings first, 20 per page', function (): void {
         $listings = Listing::factory()->count(25)->active()->create();
