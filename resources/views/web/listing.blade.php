@@ -2,6 +2,11 @@
 
 @section('title', $listing->title)
 
+@push('head')
+    {{-- Куди підключати WebSocket — у runtime, а не у збірці Vite (див. ReverbClientConfig). --}}
+    <meta name="reverb-config" content="{{ json_encode($reverb->toArray(), JSON_THROW_ON_ERROR) }}">
+@endpush
+
 @section('content')
     <a id="back-link" href="{{ route('web.search') }}" class="text-sm text-stone-600 hover:underline">← До пошуку</a>
 

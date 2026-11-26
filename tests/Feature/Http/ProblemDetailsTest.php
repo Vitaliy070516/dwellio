@@ -98,3 +98,16 @@ it('leaves demo web pages as HTML', function (): void {
         ->assertNotFound()
         ->assertHeader('Content-Type', 'text/html; charset=utf-8');
 });
+
+it('answers 404, not a 500 with SQL, for malformed ids in the URL', function (string $uri): void {
+    config(['app.debug' => true]); // найгірший випадок: навіть з debug текст SQL не має з'явитися
+
+    $this->getJson($uri)
+        ->assertNotFound()
+        ->assertJsonPath('code', 'not_found')
+        ->assertDontSee('SQLSTATE');
+})->with([
+    'listing' => ['/api/listings/abc'],
+    'ad' => ['/api/listing-ads/not-a-uuid'],
+    'web page' => ['/listings/1%20or%201=1'],
+]);

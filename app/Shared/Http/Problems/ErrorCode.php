@@ -28,6 +28,9 @@ enum ErrorCode: string
 
     case Forbidden = 'forbidden';
 
+    /** Публічне демо (`DEMO_MODE`) працює лише на читання: запис квартир вимкнено. */
+    case DemoReadOnly = 'demo_read_only';
+
     /** Ліміт запитів на IP або глобальний денний ліміт; чекати `Retry-After` секунд. */
     case RateLimited = 'rate_limited';
 
@@ -53,7 +56,7 @@ enum ErrorCode: string
             self::NotFound => Response::HTTP_NOT_FOUND,
             self::MethodNotAllowed => Response::HTTP_METHOD_NOT_ALLOWED,
             self::Unauthenticated => Response::HTTP_UNAUTHORIZED,
-            self::Forbidden => Response::HTTP_FORBIDDEN,
+            self::Forbidden, self::DemoReadOnly => Response::HTTP_FORBIDDEN,
             self::RateLimited => Response::HTTP_TOO_MANY_REQUESTS,
             self::AdGenerationInProgress => Response::HTTP_CONFLICT,
             self::AiBudgetExhausted, self::QueueUnavailable => Response::HTTP_SERVICE_UNAVAILABLE,

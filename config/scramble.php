@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Shared\OpenApi\DemoReadOnlyResponse;
 use App\Shared\OpenApi\ProblemResponseExtension;
 use Dedoc\Scramble\Http\Middleware\RestrictedDocsAccess;
 use Dedoc\Scramble\OpenApiVersion;
@@ -193,6 +194,8 @@ return [
     'extensions' => [
         // Помилки в специфікації = те, що реально віддає ProblemRenderer (RFC 9457).
         ProblemResponseExtension::class,
+        // 403 demo_read_only з middleware (Scramble бачить лише throw у контролерах).
+        DemoReadOnlyResponse::class,
     ],
 
     /*

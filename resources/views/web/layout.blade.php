@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>@yield('title') · Dwellio</title>
+    @stack('head')
     @vite(['resources/css/app.css', ...$scripts])
 </head>
 <body class="min-h-screen bg-stone-50 text-stone-900 antialiased">

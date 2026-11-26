@@ -109,6 +109,42 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | DEMO_MODE (День 12): публічне демо через Cloudflare Tunnel
+    |--------------------------------------------------------------------------
+    |
+    | Один перемикач замість набору правок .env (див. `make demo-up`):
+    | - запис квартир (POST/PUT/DELETE /api/listings) → 403 `demo_read_only`; читання, пошук і генерація працюють;
+    | - ліміти нижче діють ЯК СТЕЛЯ: береться менше з «звичайного» і демо-значення, тож демо
+    |   ніколи не буває м'якшим за локалку, навіть якщо в .env звичайний ліміт занижено чи завищено;
+    | - `app.debug` примусово false (стек-трейси і SQL назовні не витікають, навіть якщо забули .env).
+    |
+    */
+    'demo' => [
+        'enabled' => (bool) env('DEMO_MODE', false),
+        'rate_limit' => [
+            'search_per_minute_per_ip' => (int) env('DEMO_SEARCH_RATE_PER_MINUTE', 10),
+            'generation_per_minute_per_ip' => (int) env('DEMO_GENERATION_RATE_PER_MINUTE', 2),
+            // Без автентифікації ліміт «на день на IP» — єдине, що не дає одному гостю з'їсти денну стелю всіх.
+            'generation_per_day_per_ip' => (int) env('DEMO_GENERATION_RATE_PER_DAY_PER_IP', 10),
+            'generation_per_day_global' => (int) env('DEMO_GENERATION_RATE_PER_DAY', 50),
+        ],
+    ],
+
+    /*
+    | Куди браузер підключає WebSocket (Reverb). Віддається сторінці в runtime (meta-тег), а не
+    | вшивається у JS під час `npm run build` (VITE_*): одна збірка працює і локально, і за тунелем
+    | з випадковим доменом, і на AWS — «build once, deploy anywhere».
+    | host порожній (або DEMO_MODE) → той самий origin, що й сторінка: wss://<домен>/app/… через Caddy.
+    | VITE_REVERB_* — запасні імена з Дня 6, щоб старий .env працював без правок.
+    */
+    'reverb_client' => [
+        'host' => env('REVERB_CLIENT_HOST', env('VITE_REVERB_HOST')),
+        'port' => env('REVERB_CLIENT_PORT', env('VITE_REVERB_PORT')),
+        'scheme' => env('REVERB_CLIENT_SCHEME', env('VITE_REVERB_SCHEME')),
+    ],
+
     'search' => [
         // Скільки кандидатів бере кожна гілка (вектор / FTS / trigram) перед злиттям RRF.
         'candidates' => 50,

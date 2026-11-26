@@ -21,7 +21,17 @@
         </include>
     </source>
     <php>
-        <env name="APP_ENV" value="testing"/>
+        <!-- force: compose передає APP_ENV/DEMO_MODE/APP_CONFIG_CACHE у контейнер справжніми змінними
+             оточення (див. x-app-env), а без force PHPUnit їх не перекриває. Кеш конфігу в тестах —
+             неіснуючий файл: інакше під час демо тести взяли б кешовану demo-БД і RefreshDatabase її стер би. -->
+        <env name="APP_ENV" value="testing" force="true"/>
+        <env name="DEMO_MODE" value="false" force="true"/>
+        <env name="APP_CONFIG_CACHE" value="bootstrap/cache/config.testing-never-cached.php" force="true"/>
+        <!-- <env force> пише лише $_ENV і putenv, а Laravel (Env) першим читає $_SERVER, куди потрапляє
+             справжнє оточення контейнера. Тому ті самі три змінні ще й через <server>. -->
+        <server name="APP_ENV" value="testing" force="true"/>
+        <server name="DEMO_MODE" value="false" force="true"/>
+        <server name="APP_CONFIG_CACHE" value="bootstrap/cache/config.testing-never-cached.php" force="true"/>
         <env name="LOG_CHANNEL" value="null"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>

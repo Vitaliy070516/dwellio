@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Generation;
 
 use App\Modules\Generation\Models\ListingAd;
+use App\Shared\Demo\DemoMode;
 use Illuminate\Auth\GenericUser;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -42,11 +43,25 @@ final class GenerationServiceProvider extends ServiceProvider
          * на IP (зловживання одним клієнтом) і глобальна денна стеля запитів. Третя лінія —
          * денний бюджет токенів (AI\Contracts\TokenBudget): ліміт запитів не знає, скільки коштує кожен.
          */
-        RateLimiter::for('ad-generation', static fn (Request $request): array => [
-            Limit::perMinute(config()->integer('dwellio.generation.rate_limit.per_minute_per_ip'))
-                ->by('ip:'.$request->ip()),
-            Limit::perDay(config()->integer('dwellio.generation.rate_limit.per_day_global'))
-                ->by('global'),
-        ]);
+        RateLimiter::for('ad-generation', static function (Request $request): array {
+            $limits = [
+                Limit::perMinute(DemoMode::limit(
+                    config()->integer('dwellio.generation.rate_limit.per_minute_per_ip'),
+                    'generation_per_minute_per_ip',
+                ))->by('ip:'.$request->ip()),
+                Limit::perDay(DemoMode::limit(
+                    config()->integer('dwellio.generation.rate_limit.per_day_global'),
+                    'generation_per_day_global',
+                ))->by('global'),
+            ];
+
+            // Лише на демо: без автентифікації одна людина інакше вибирає глобальну денну стелю за всіх.
+            $perDayPerIp = DemoMode::onlyLimit('generation_per_day_per_ip');
+            if ($perDayPerIp !== null) {
+                $limits[] = Limit::perDay($perDayPerIp)->by('ip-day:'.$request->ip());
+            }
+
+            return $limits;
+        });
     }
 }

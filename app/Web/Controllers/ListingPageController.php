@@ -7,6 +7,7 @@ namespace App\Web\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Generation\Enums\Platform;
 use App\Modules\Listings\Models\Listing;
+use App\Web\Support\ReverbClientConfig;
 use Illuminate\Contracts\View\View;
 
 /**
@@ -23,6 +24,7 @@ final class ListingPageController extends Controller
         return view('web.listing', [
             'listing' => $listing,
             'platforms' => Platform::cases(),
+            'reverb' => ReverbClientConfig::fromConfig(),
         ]);
     }
 }

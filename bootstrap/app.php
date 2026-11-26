@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Shared\Http\Middleware\ReadOnlyInDemo;
 use App\Shared\Http\Problems\ProblemRenderer;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -26,7 +27,9 @@ return Application::configure(basePath: dirname(__DIR__))
         __DIR__.'/../app/Modules/Search/Console',
     ])
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        $middleware->alias([ReadOnlyInDemo::ALIAS => ReadOnlyInDemo::class]);
+        // Довірені проксі — з config/trustedproxy.php (TRUSTED_PROXIES), а не тут: env() у цьому
+        // замиканні викликається до завантаження .env і кешу конфігу.
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(ProblemRenderer::wantsProblem(...));

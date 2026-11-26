@@ -84,7 +84,12 @@ return [
                     'scheme' => env('REVERB_SCHEME', 'https'),
                     'useTLS' => env('REVERB_SCHEME', 'https') === 'https',
                 ],
-                'allowed_origins' => ['*'],
+                // Звідки браузер може відкрити WebSocket (хост з Origin, шаблони Str::is). На демо — лише
+                // сторінки тунелю: чужий сайт не відкриє з'єднання з браузера гостя. Локально — будь-звідки.
+                'allowed_origins' => array_values(array_filter(array_map(trim(...), explode(',', (string) env(
+                    'REVERB_ALLOWED_ORIGINS',
+                    filter_var(env('DEMO_MODE', false), FILTER_VALIDATE_BOOL) ? '*.trycloudflare.com' : '*',
+                ))))),
                 'ping_interval' => env('REVERB_APP_PING_INTERVAL', 60),
                 'activity_timeout' => env('REVERB_APP_ACTIVITY_TIMEOUT', 30),
                 'max_connections' => env('REVERB_APP_MAX_CONNECTIONS'),

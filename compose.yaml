@@ -1,6 +1,23 @@
 # Dev-оточення через Laravel Sail.
 # Базові сервіси: laravel.test, reverb, pgsql (pgvector), redis, rabbitmq.
-# Важкі/опційні сервіси — у profiles: `ollama`, `obs`, `workers` (див. Makefile).
+# Важкі/опційні сервіси — у profiles: `ollama`, `obs`, `workers`, `demo` (див. Makefile).
+
+# Статична IP Caddy у мережі `demo`: Laravel довіряє X-Forwarded-* ЛИШЕ з цієї адреси (config/trustedproxy.php).
+x-demo-proxy-ip: &demo-proxy-ip '172.29.212.10'
+
+# Спільне оточення PHP-контейнерів. APP_ENV/APP_DEBUG/DEMO_MODE/APP_CONFIG_CACHE тут, а не лише в .env:
+# `make demo-up` перекриває їх змінними shell (вони пріоритетніші за .env) без правки файлу,
+# а звичайний `make up` повертає значення з .env. Демо-кеш конфігу — окремим файлом, щоб
+# локальна розробка після демо не підхопила кешовані demo-налаштування.
+x-app-env: &app-env
+    WWWUSER: '${WWWUSER}'
+    LARAVEL_SAIL: 1
+    APP_ENV: '${APP_ENV:-local}'
+    APP_DEBUG: '${APP_DEBUG:-true}'
+    DEMO_MODE: '${DEMO_MODE:-false}'
+    APP_CONFIG_CACHE: '${APP_CONFIG_CACHE:-bootstrap/cache/config.php}'
+    TRUSTED_PROXIES: *demo-proxy-ip
+
 services:
     laravel.test:
         build:
@@ -15,8 +32,7 @@ services:
             - '${APP_PORT:-80}:80'
             - '${VITE_PORT:-5173}:${VITE_PORT:-5173}'
         environment:
-            WWWUSER: '${WWWUSER}'
-            LARAVEL_SAIL: 1
+            <<: *app-env
             XDEBUG_MODE: '${SAIL_XDEBUG_MODE:-off}'
             XDEBUG_CONFIG: '${SAIL_XDEBUG_CONFIG:-client_host=host.docker.internal}'
             IGNITION_LOCAL_SITES_PATH: '${PWD}'
@@ -24,6 +40,7 @@ services:
             - '.:/var/www/html'
         networks:
             - sail
+            - demo
         depends_on:
             pgsql:
                 condition: service_healthy
@@ -40,13 +57,13 @@ services:
         ports:
             - '${FORWARD_REVERB_PORT:-8080}:8080'
         environment:
-            WWWUSER: '${WWWUSER}'
-            LARAVEL_SAIL: 1
+            <<: *app-env
             REVERB_SCALING_ENABLED: 'true'
         volumes:
             - '.:/var/www/html'
         networks:
             - sail
+            - demo
         depends_on:
             redis:
                 condition: service_healthy
@@ -65,8 +82,7 @@ services:
         image: 'sail-8.4/app'
         command: ['php', 'artisan', 'queue:work', 'rabbitmq', '--queue=embeddings', '--timeout=120', '--max-jobs=500', '--max-time=3600']
         environment:
-            WWWUSER: '${WWWUSER}'
-            LARAVEL_SAIL: 1
+            <<: *app-env
         volumes:
             - '.:/var/www/html'
         networks:
@@ -83,8 +99,7 @@ services:
         image: 'sail-8.4/app'
         command: ['php', 'artisan', 'queue:work', 'rabbitmq', '--queue=generation', '--timeout=270', '--max-jobs=200', '--max-time=3600']
         environment:
-            WWWUSER: '${WWWUSER}'
-            LARAVEL_SAIL: 1
+            <<: *app-env
         volumes:
             - '.:/var/www/html'
         networks:
@@ -153,6 +168,10 @@ services:
     ollama:
         profiles: ['ollama']
         image: 'ollama/ollama:latest'
+        environment:
+            # За замовчуванням Ollama вивантажує модель після 5 хв простою, і наступний гість демо
+            # чекає холодний старт (~25 с ембединги + розбір запиту). 30m — компроміс з RAM ноутбука.
+            OLLAMA_KEEP_ALIVE: '${OLLAMA_KEEP_ALIVE:-30m}'
         ports:
             - '${FORWARD_OLLAMA_PORT:-11434}:11434'
         volumes:
@@ -160,6 +179,32 @@ services:
         networks:
             - sail
         mem_limit: 6g
+
+    # ---- profile: demo (публічне демо через Cloudflare Tunnel, День 12; див. make demo-up) ----
+    # Quick Tunnel: без акаунта й домену, адреса *.trycloudflare.com нова при кожному старті (make demo-url).
+    # Обмеження Quick Tunnel: до 200 одночасних запитів (далі 429), без SLA — лише для показу, не для проду.
+    demo-proxy:
+        profiles: ['demo']
+        image: 'caddy:2-alpine'
+        volumes:
+            - './docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro'
+        networks:
+            demo:
+                ipv4_address: *demo-proxy-ip
+        depends_on:
+            - laravel.test
+            - reverb
+        mem_limit: 64m
+    tunnel:
+        profiles: ['demo']
+        image: 'cloudflare/cloudflared:latest'
+        command: ['tunnel', '--no-autoupdate', '--url', 'http://demo-proxy:8000']
+        networks:
+            - demo
+        depends_on:
+            - demo-proxy
+        restart: unless-stopped
+        mem_limit: 128m
 
     # ---- profile: obs (Prometheus + Loki + Grafana) ----
     prometheus:
@@ -205,6 +250,13 @@ services:
 networks:
     sail:
         driver: bridge
+    # Окрема мережа з фіксованою підмережею лише заради статичної IP Caddy (довірений проксі).
+    # У `sail` IPAM не задано, а змінювати його = перестворювати мережу всім, хто вже має Sail.
+    demo:
+        driver: bridge
+        ipam:
+            config:
+                - subnet: '172.29.212.0/28'
 volumes:
     sail-pgsql:
         driver: local

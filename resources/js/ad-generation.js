@@ -171,15 +171,34 @@ export function mountAdGenerator(root) {
     }
 }
 
+/**
+ * Куди підключатися — із meta `reverb-config` (runtime), а не з VITE_* (вшито у збірку).
+ * host = null → той самий origin, що й сторінка (тунель / реверс-проксі проксіює /app/* у Reverb).
+ */
+function reverbConnection() {
+    const raw = document.querySelector('meta[name="reverb-config"]')?.content;
+    const config = raw ? JSON.parse(raw) : {};
+    const sameOrigin = !config.host;
+    const scheme = sameOrigin ? window.location.protocol.replace(':', '') : (config.scheme ?? 'https');
+    const tls = scheme === 'https';
+    const port = sameOrigin
+        ? Number(window.location.port || (tls ? 443 : 80))
+        : Number(config.port ?? (tls ? 443 : 80));
+
+    return {
+        key: config.key ?? '',
+        wsHost: sameOrigin ? window.location.hostname : config.host,
+        wsPort: port,
+        wssPort: port,
+        forceTLS: tls,
+    };
+}
+
 function makeEcho(meta) {
     return new Echo({
         broadcaster: 'reverb',
         Pusher,
-        key: import.meta.env.VITE_REVERB_APP_KEY,
-        wsHost: import.meta.env.VITE_REVERB_HOST,
-        wsPort: Number(import.meta.env.VITE_REVERB_PORT ?? 80),
-        wssPort: Number(import.meta.env.VITE_REVERB_PORT ?? 443),
-        forceTLS: (import.meta.env.VITE_REVERB_SCHEME ?? 'https') === 'https',
+        ...reverbConnection(),
         enabledTransports: ['ws', 'wss'],
         authEndpoint: meta.auth_endpoint,
         auth: { headers: { [meta.token_header]: meta.access_token, Accept: 'application/json' } },

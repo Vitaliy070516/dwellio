@@ -1,0 +1,45 @@
+# Демо-проксі (День 12): єдиний origin для тунелю Cloudflare.
+#   браузер ──https/wss──▶ Cloudflare edge ──▶ cloudflared ──http──▶ Caddy :8000 ─┬─▶ reverb:8080   (/app/*  WebSocket)
+#                                                                                  └─▶ laravel.test:80 (усе інше)
+# TLS закінчується на Cloudflare, тож Caddy слухає звичайний HTTP і порт назовні не публікує:
+# дістатися до нього можна лише з мережі `demo` (тобто через cloudflared).
+{
+	admin off
+	auto_https off
+}
+
+:8000 {
+	# Справжній IP гостя ставить Cloudflare у CF-Connecting-IP (клієнт його не підробить, edge перезаписує).
+	# X-Forwarded-For від клієнта відкидаємо цілком: інакше ліміти «на IP» обходяться підробленим заголовком.
+	# Tunnel завжди https на edge — X-Forwarded-Proto фіксуємо, щоб Laravel генерував https-URL (інакше mixed content).
+	@ws path /app/*
+	handle @ws {
+		reverse_proxy reverb:8080 {
+			header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+			header_up X-Forwarded-Proto https
+		}
+	}
+
+	# HTTP API Reverb (/apps/{id}/events) назовні не віддаємо: публікує лише сервер усередині Docker.
+	@reverbApi path /apps/*
+	handle @reverbApi {
+		respond 404
+	}
+
+	handle {
+		reverse_proxy laravel.test:80 {
+			header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+			header_up X-Forwarded-Proto https
+			# Холодний старт LLM/ембедингів: не обриваємо раніше за таймаути застосунку.
+			transport http {
+				response_header_timeout 90s
+			}
+		}
+	}
+
+	encode zstd gzip
+	log {
+		output stdout
+		format json
+	}
+}
