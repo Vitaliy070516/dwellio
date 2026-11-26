@@ -63,3 +63,27 @@ jobs:
 
       - name: Pest
         run: vendor/bin/pest
+
+  terraform:
+    name: Terraform fmt → validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: terraform/envs/prod
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.13.x'
+
+      - name: fmt
+        run: terraform fmt -check -recursive -diff ../..
+
+      # -backend=false: без AWS-акаунта й облікових даних (state і провайдер не потрібні для validate).
+      - name: init
+        run: terraform init -backend=false -input=false
+
+      - name: validate
+        run: terraform validate

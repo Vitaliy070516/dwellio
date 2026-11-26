@@ -1,0 +1,3 @@
+# Скопіюйте в backend.hcl (у .gitignore) і впишіть свій бакет для state.
+bucket = "dwellio-tfstate-CHANGE-ME"
+region = "eu-central-1"

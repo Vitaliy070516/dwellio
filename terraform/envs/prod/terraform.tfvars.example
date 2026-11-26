@@ -1,0 +1,6 @@
+# Скопіюйте в terraform.tfvars (у .gitignore).
+region             = "eu-central-1"
+instance_type      = "t3.micro"
+backup_bucket_name = "dwellio-backups-CHANGE-ME"
+alert_email        = "you@example.com"
+monthly_budget_usd = "10"

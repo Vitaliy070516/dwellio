@@ -14,6 +14,20 @@ default:
     - composer install --no-interaction --prefer-dist --no-progress
     - cp .env.example .env && php artisan key:generate
 
+# Без AWS-акаунта: -backend=false, жодних облікових даних у CI. Свій образ і без PHP-кешу.
+terraform:
+  stage: lint
+  image:
+    name: hashicorp/terraform:1.13
+    entrypoint: ['']
+  cache: []
+  before_script: []
+  script:
+    - terraform fmt -check -recursive -diff terraform
+    - cd terraform/envs/prod
+    - terraform init -backend=false -input=false
+    - terraform validate
+
 pint:
   stage: lint
   script: vendor/bin/pint --test

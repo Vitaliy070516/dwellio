@@ -29,3 +29,13 @@ Homestead.yaml
 Thumbs.db
 /storage/framework/phpstan
 /exported_sessions/
+
+# Terraform: state і секрети ніколи не комітимо; .terraform.lock.hcl — комітимо (фіксує версії провайдерів).
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfvars
+!*.tfvars.example
+backend.hcl
+*.tfplan

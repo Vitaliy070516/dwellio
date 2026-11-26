@@ -2,7 +2,7 @@
 SAIL := ./vendor/bin/sail
 
 .DEFAULT_GOAL := help
-.PHONY: help up up-ollama up-obs up-workers up-all down test stan pint pint-check artisan shell composer check queue-setup worker worker-generation workers-restart reverb-logs build reindex
+.PHONY: help up up-ollama up-obs up-workers up-all down test stan pint pint-check artisan shell composer check queue-setup worker worker-generation workers-restart reverb-logs build reindex ai-usage tf-fmt tf-validate
 
 help: ## Список команд
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-12s\033[0m %s\n",$$1,$$2}'
@@ -56,6 +56,20 @@ workers-restart: ## М'який перезапуск воркерів після
 
 reverb-logs: ## Логи Reverb
 	$(SAIL) logs -f reverb
+
+ai-usage: ## Денне споживання токенів проти бюджетів (лічильники в Redis)
+	$(SAIL) artisan ai:usage
+
+# Terraform — у Docker-контейнері, без локальної установки й без AWS-акаунта (state не потрібен).
+TF := docker run --rm -u $$(id -u):$$(id -g) -e HOME=/tmp -v $(CURDIR)/terraform:/tf hashicorp/terraform:1.13
+
+tf-fmt: ## terraform fmt (виправляє форматування)
+	$(TF) -chdir=/tf fmt -recursive
+
+tf-validate: ## terraform fmt -check + init -backend=false + validate
+	$(TF) -chdir=/tf fmt -check -recursive -diff
+	$(TF) -chdir=/tf/envs/prod init -backend=false -input=false
+	$(TF) -chdir=/tf/envs/prod validate
 
 build: ## Зібрати фронтенд (Vite)
 	$(SAIL) npm run build
