@@ -1,6 +1,6 @@
 # Dev-оточення через Laravel Sail.
-# Базові сервіси: laravel.test, pgsql (pgvector), redis, rabbitmq.
-# Важкі сервіси — у profiles: `ollama`, `obs` (див. Makefile: make up-ollama / make up-obs).
+# Базові сервіси: laravel.test, reverb, pgsql (pgvector), redis, rabbitmq.
+# Важкі/опційні сервіси — у profiles: `ollama`, `obs`, `workers` (див. Makefile).
 services:
     laravel.test:
         build:
@@ -14,7 +14,6 @@ services:
         ports:
             - '${APP_PORT:-80}:80'
             - '${VITE_PORT:-5173}:${VITE_PORT:-5173}'
-            - '${REVERB_PORT:-8080}:8080'
         environment:
             WWWUSER: '${WWWUSER}'
             LARAVEL_SAIL: 1
@@ -32,6 +31,74 @@ services:
                 condition: service_healthy
             rabbitmq:
                 condition: service_healthy
+    # ---- Reverb (WebSockets): окремий процес = окремий контейнер (на тижні 4 — окремий Deployment) ----
+    # Scaling через Redis pub/sub увімкнено навіть для одного інстансу: подія, опублікована
+    # воркером через HTTP API в будь-який інстанс, доходить до клієнтів усіх інстансів.
+    reverb:
+        image: 'sail-8.4/app'
+        command: ['php', 'artisan', 'reverb:start', '--host=0.0.0.0', '--port=8080']
+        ports:
+            - '${FORWARD_REVERB_PORT:-8080}:8080'
+        environment:
+            WWWUSER: '${WWWUSER}'
+            LARAVEL_SAIL: 1
+            REVERB_SCALING_ENABLED: 'true'
+        volumes:
+            - '.:/var/www/html'
+        networks:
+            - sail
+        depends_on:
+            redis:
+                condition: service_healthy
+        healthcheck:
+            test: ['CMD', 'curl', '-fsS', 'http://localhost:8080/up']
+            interval: 10s
+            retries: 3
+            timeout: 5s
+        mem_limit: 256m
+
+    # ---- profile: workers (воркери черг; без профілю — `make worker` у laravel.test) ----
+    # stop_grace_period > найдовшого $timeout Job: SIGTERM дає воркеру дочекати поточну задачу,
+    # інакше деплой обірве генерацію посеред стріму, і RabbitMQ доставить її повторно (= повторна оплата токенів).
+    worker-embeddings:
+        profiles: ['workers']
+        image: 'sail-8.4/app'
+        command: ['php', 'artisan', 'queue:work', 'rabbitmq', '--queue=embeddings', '--timeout=120', '--max-jobs=500', '--max-time=3600']
+        environment:
+            WWWUSER: '${WWWUSER}'
+            LARAVEL_SAIL: 1
+        volumes:
+            - '.:/var/www/html'
+        networks:
+            - sail
+        depends_on:
+            pgsql:
+                condition: service_healthy
+            rabbitmq:
+                condition: service_healthy
+        stop_grace_period: 150s
+        mem_limit: 256m
+    worker-generation:
+        profiles: ['workers']
+        image: 'sail-8.4/app'
+        command: ['php', 'artisan', 'queue:work', 'rabbitmq', '--queue=generation', '--timeout=270', '--max-jobs=200', '--max-time=3600']
+        environment:
+            WWWUSER: '${WWWUSER}'
+            LARAVEL_SAIL: 1
+        volumes:
+            - '.:/var/www/html'
+        networks:
+            - sail
+        depends_on:
+            pgsql:
+                condition: service_healthy
+            rabbitmq:
+                condition: service_healthy
+            reverb:
+                condition: service_healthy
+        stop_grace_period: 300s
+        mem_limit: 256m
+
     pgsql:
         image: 'pgvector/pgvector:pg18'
         ports:
