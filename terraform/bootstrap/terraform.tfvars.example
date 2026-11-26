@@ -1,0 +1,6 @@
+# Скопіюйте в terraform.tfvars (у .gitignore).
+aws_account_id          = "123456789012"
+region                  = "eu-central-1"
+alert_email             = "you@example.com"
+net_spend_alert_usd     = "1"
+monthly_credit_burn_usd = "15"

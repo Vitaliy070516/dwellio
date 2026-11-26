@@ -95,12 +95,16 @@ jobs:
       - run: npm test
 
   terraform:
-    name: Terraform fmt → validate
+    name: Terraform fmt → validate (${{ matrix.stack }})
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        stack: [bootstrap, envs/prod]
     defaults:
       run:
-        working-directory: terraform/envs/prod
+        working-directory: terraform/${{ matrix.stack }}
     steps:
       - uses: actions/checkout@v4
 
@@ -109,7 +113,7 @@ jobs:
           terraform_version: '1.13.x'
 
       - name: fmt
-        run: terraform fmt -check -recursive -diff ../..
+        run: terraform fmt -check -recursive -diff "$GITHUB_WORKSPACE/terraform"
 
       # -backend=false: без AWS-акаунта й облікових даних (state і провайдер не потрібні для validate).
       - name: init

@@ -1,6 +1,5 @@
 # Скопіюйте в terraform.tfvars (у .gitignore).
+aws_account_id     = "123456789012"
 region             = "eu-central-1"
-instance_type      = "t3.micro"
-backup_bucket_name = "dwellio-backups-CHANGE-ME"
-alert_email        = "you@example.com"
-monthly_budget_usd = "10"
+instance_type      = "t3.small" # ADR-006
+backup_bucket_name = "dwellio-backups-123456789012"

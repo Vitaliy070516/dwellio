@@ -1,5 +1,5 @@
 #!/bin/bash
-# Первинне налаштування: Docker + Compose plugin і swap (на 1 ГБ RAM без swap OOM-killer вб'є php-fpm).
+# Первинне налаштування: Docker + Compose plugin і swap — страховка від OOM-killer на піках (ADR-006).
 set -euo pipefail
 
 dnf install -y docker

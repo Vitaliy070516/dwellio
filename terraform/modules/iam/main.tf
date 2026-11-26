@@ -18,6 +18,8 @@ data "aws_iam_policy_document" "assume_ec2" {
 resource "aws_iam_role" "instance" {
   name               = "${var.name}-instance"
   assume_role_policy = data.aws_iam_policy_document.assume_ec2.json
+  # Без boundary deployer не має права на CreateRole (terraform/bootstrap/iam.tf).
+  permissions_boundary = var.permissions_boundary_arn
 }
 
 resource "aws_iam_role_policy_attachment" "ssm" {

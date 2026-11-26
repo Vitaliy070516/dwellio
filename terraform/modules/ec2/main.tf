@@ -1,4 +1,4 @@
-# Один EC2 з Docker Compose (профіль prod-light). Тип інстансу — ADR-006 (t3.micro + swap чи t3.small).
+# Один EC2 з Docker Compose (профіль prod-light). Тип інстансу — ADR-006 (t3.small + 1 ГБ swap як страховка).
 
 # Актуальний AMI Amazon Linux 2023 з публічного SSM-параметра: без захардкожених ami-id під регіон.
 data "aws_ssm_parameter" "al2023" {

@@ -2,7 +2,7 @@
 SAIL := ./vendor/bin/sail
 
 .DEFAULT_GOAL := help
-.PHONY: help up up-ollama up-obs up-workers up-all down test stan pint pint-check artisan shell composer check test-js queue-setup worker worker-generation workers-restart reverb-logs build reindex ai-usage search-eval search-stats openapi openapi-check demo-up demo-url demo-check demo-down tf-fmt tf-validate
+.PHONY: help up up-ollama up-obs up-workers up-all down test stan pint pint-check artisan shell composer check test-js queue-setup worker worker-generation workers-restart reverb-logs build reindex ai-usage search-eval search-stats openapi openapi-check demo-up demo-url demo-check demo-down tf-fmt tf-validate aws-sso-setup aws-login aws-whoami tf-bootstrap-plan tf-bootstrap-apply tf-init tf-plan tf-apply tf-destroy
 
 help: ## Список команд
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-12s\033[0m %s\n",$$1,$$2}'
@@ -112,16 +112,61 @@ demo-down: ## Закрити тунель і повернути контейне
 	rm -f bootstrap/cache/config.demo.php
 	$(SAIL) $(DEMO_PROFILES) up -d $(DEMO_APP)
 
-# Terraform — у Docker-контейнері, без локальної установки й без AWS-акаунта (state не потрібен).
-TF := docker run --rm -u $$(id -u):$$(id -g) -e HOME=/tmp -v $(CURDIR)/terraform:/tf hashicorp/terraform:1.13
+# Terraform — у Docker-контейнері, без локальної установки. fmt/validate — без AWS-акаунта (state не потрібен).
+TF_IMAGE := hashicorp/terraform:1.13
+TF := docker run --rm -u $$(id -u):$$(id -g) -e HOME=/tmp -v $(CURDIR)/terraform:/tf $(TF_IMAGE)
+TF_STACKS := bootstrap envs/prod
 
 tf-fmt: ## terraform fmt (виправляє форматування)
 	$(TF) -chdir=/tf fmt -recursive
 
-tf-validate: ## terraform fmt -check + init -backend=false + validate
+tf-validate: ## terraform fmt -check + init -backend=false + validate (bootstrap і prod)
 	$(TF) -chdir=/tf fmt -check -recursive -diff
-	$(TF) -chdir=/tf/envs/prod init -backend=false -input=false
-	$(TF) -chdir=/tf/envs/prod validate
+	@for s in $(TF_STACKS); do \
+		echo "== $$s"; \
+		$(TF) -chdir=/tf/$$s init -backend=false -input=false >/dev/null && \
+		$(TF) -chdir=/tf/$$s validate || exit 1; \
+	done
+
+# AWS — профілі IAM Identity Center (SSO) у ~/.aws: короткоживучі токени замість access keys.
+# dwellio-admin — лише для bootstrap; dwellio-tf — щоденний least privilege (docs/runbooks/aws-account-setup.md).
+AWS_PROFILE_ADMIN ?= dwellio-admin
+AWS_PROFILE_TF    ?= dwellio-tf
+p ?= $(AWS_PROFILE_TF)
+AWS_DOCKER = docker run --rm -it -u $$(id -u):$$(id -g) -e HOME=/tmp -v $(HOME)/.aws:/tmp/.aws
+AWS_CLI = $(AWS_DOCKER) amazon/aws-cli:2.31.0
+TF_AWS = $(AWS_DOCKER) -e AWS_PROFILE=$(1) -v $(CURDIR)/terraform:/tf $(TF_IMAGE) -chdir=/tf/$(2)
+
+$(HOME)/.aws:
+	mkdir -p $@
+
+aws-sso-setup: $(HOME)/.aws ## Створити SSO-профіль інтерактивно: make aws-sso-setup p=dwellio-tf
+	$(AWS_CLI) configure sso --profile $(p) --use-device-code
+
+aws-login: $(HOME)/.aws ## Увійти через SSO (device code + MFA): make aws-login [p=dwellio-admin]
+	$(AWS_CLI) sso login --profile $(p) --use-device-code
+
+aws-whoami: ## Під ким я зараз в AWS: make aws-whoami [p=dwellio-admin]
+	$(AWS_CLI) sts get-caller-identity --profile $(p)
+
+tf-bootstrap-plan: ## Bootstrap (state-бакет, бюджети, IAM): init + plan під адмін-профілем
+	$(call TF_AWS,$(AWS_PROFILE_ADMIN),bootstrap) init -input=false
+	$(call TF_AWS,$(AWS_PROFILE_ADMIN),bootstrap) plan -input=false -out=bootstrap.tfplan
+
+tf-bootstrap-apply: ## Застосувати збережений план bootstrap
+	$(call TF_AWS,$(AWS_PROFILE_ADMIN),bootstrap) apply -input=false bootstrap.tfplan
+
+tf-init: ## Prod: init з remote state (envs/prod/backend.hcl)
+	$(call TF_AWS,$(AWS_PROFILE_TF),envs/prod) init -input=false -backend-config=backend.hcl
+
+tf-plan: ## Prod: plan у файл (apply застосує саме його)
+	$(call TF_AWS,$(AWS_PROFILE_TF),envs/prod) plan -input=false -out=prod.tfplan
+
+tf-apply: ## Prod: застосувати збережений план
+	$(call TF_AWS,$(AWS_PROFILE_TF),envs/prod) apply -input=false prod.tfplan
+
+tf-destroy: ## Prod: згорнути все після демо (FinOps). State і бюджети з bootstrap лишаються
+	$(call TF_AWS,$(AWS_PROFILE_TF),envs/prod) destroy -input=false
 
 build: ## Зібрати фронтенд (Vite)
 	$(SAIL) npm run build

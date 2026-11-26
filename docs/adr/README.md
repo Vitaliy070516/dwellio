@@ -12,7 +12,7 @@
 | [003](003-pgvector-hybrid-search.md) | pgvector + hybrid search (RRF) | Прийнято |
 | [004](004-ai-sdk-choice.md) | Laravel AI SDK замість Prism | Прийнято |
 | [005](005-reverb-streaming-from-worker.md) | Reverb і стрімінг із воркера | Прийнято |
-| 006 | `t3.micro` + swap проти `t3.small` на кредитах | Заплановано (тиждень 3) |
+| [006](006-ec2-instance-size.md) | `t3.small` проти `t3.micro` + swap для prod-light | Прийнято |
 
 ## Шаблон
 

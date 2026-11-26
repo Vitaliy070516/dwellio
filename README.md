@@ -12,7 +12,7 @@
 
 Головна ідея дизайну: **AI — ненадійна і платна залежність**. Тому кожен виклик LLM має fallback, ретраї з межею, DLQ і бюджет у Redis — у токенах на кожну ціль і в доларах на весь сервіс. Пошук працює навіть тоді, коли AI повністю лежить.
 
-> Статус: **MVP готовий** (тиждень 2 з 6): пошук, генерація зі стрімінгом, OpenAPI, ліміти витрат у $, публічне демо через тунель. Далі — AWS + observability (тиждень 3), Kubernetes (тиждень 4). План — [`docs/roadmap.md`](docs/roadmap.md), архітектура і журнал рішень по днях — [`docs/architecture.md`](docs/architecture.md).
+> Статус: **MVP готовий** (тиждень 2 з 6): пошук, генерація зі стрімінгом, OpenAPI, ліміти витрат у $, публічне демо через тунель. Зараз — AWS + observability (тиждень 3), Kubernetes (тиждень 4). План — [`docs/roadmap.md`](docs/roadmap.md), архітектура і журнал рішень по днях — [`docs/architecture.md`](docs/architecture.md).
 
 ## Як це виглядає
 
@@ -250,7 +250,7 @@ make search-stats
 
 `ai-usage` — токени і $ за сьогодні проти стель; `search-stats` — hit rate кешів пошуку (нормалізований ключ: «Тихо, з котом!» = «тихо з котом»).
 
-**Чесні межі:** бюджет м'який — паралельні виклики можуть перевищити ліміт на (воркери × `max_tokens`); $-стеля — запобіжник застосунку, а не білінгу, тому в проді ліміти треба виставити й у консолях Anthropic / Voyage та AWS Budgets (тиждень 3).
+**Чесні межі:** бюджет м'який — паралельні виклики можуть перевищити ліміт на (воркери × `max_tokens`); $-стеля — запобіжник застосунку, а не білінгу, тому в проді ліміти треба виставити й у консолях Anthropic / Voyage та AWS Budgets — див. [ранбук AWS](docs/runbooks/aws-account-setup.md), крок 4.
 
 ## Якість і CI
 
@@ -264,13 +264,14 @@ make check
 
 ## Інфраструктура
 
-- **Terraform** ([`terraform/`](terraform)): VPC з однією публічною підмережею без NAT, Security Group лише 80/443 (доступ адміністратора — SSM Session Manager, без SSH), EC2 `t3.micro` з IMDSv2 і зашифрованим gp3, Elastic IP, приватний S3-бакет для `pg_dump` (versioning, SSE, lifecycle 30 днів, TLS-only), IAM-роль інстансу з правом лише **писати** бекапи, AWS Budgets. Remote state — S3 з нативним lock-файлом.
+- **Terraform** ([`terraform/`](terraform)): VPC з однією публічною підмережею без NAT, Security Group лише 80/443 (доступ адміністратора — SSM Session Manager, без SSH), EC2 `t3.small` з IMDSv2 і зашифрованим gp3 ([ADR-006](docs/adr/006-ec2-instance-size.md): RAM процесів виміряно, 1 ГБ не вистачає), Elastic IP, приватний S3-бакет для `pg_dump` (versioning, SSE, lifecycle 30 днів, TLS-only), IAM-роль інстансу з правом лише **писати** бекапи. Remote state — S3 з нативним lock-файлом.
+- **Bootstrap акаунта** ([`terraform/bootstrap`](terraform/bootstrap)) — окремий стек, який переживає `destroy` проду: state-бакет (`prevent_destroy`), два бюджети (net-витрати $1 і швидкість витрати кредитів — бюджет за замовчуванням рахує після кредитів і на Free Plan мовчить), IAM-політика Terraform з least privilege і **permissions boundary** (право `CreateRole` без стелі = ескалація до адміна). Доступ — лише IAM Identity Center + MFA, жодних access keys.
 
 ```bash
 make tf-validate
 ```
 
-- **AWS** — з тижня 3, за [чеклистом безпечного старту](docs/architecture.md#4-план-на-тиждень-1-wsl2-ubuntu-усі-команди--через-sail): MFA на root, IAM least privilege, бюджетні алерти, `terraform destroy` після демо.
+- **AWS** — з тижня 3, за [ранбуком безпечного старту](docs/runbooks/aws-account-setup.md): root лише з MFA і для білінгу, SSO-профілі `dwellio-admin` (bootstrap) і `dwellio-tf` (щодня), ліміти в консолях Anthropic / Voyage, `terraform destroy` після демо.
 - **Kubernetes** — тиждень 4: Kustomize overlays, HPA, k3d.
 
 ## System Design & SRE
@@ -289,6 +290,6 @@ app/Modules/{Listings,Search,Generation,AI}/   # Actions, DTO, Http, Jobs, Model
 app/Shared/                                    # спільне без залежностей від модулів
 tests/{Feature,Unit,Architecture}/
 docker/  compose.yaml                          # Sail; profiles: ollama, obs, workers
-terraform/{modules,envs/prod}/
-docs/{architecture.md,roadmap.md,adr/}
+terraform/{bootstrap,modules,envs/prod}/
+docs/{architecture.md,roadmap.md,adr/,runbooks/}
 ```

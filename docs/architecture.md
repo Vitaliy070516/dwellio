@@ -190,7 +190,7 @@ dwellio/
 - Обірваний стрім токенів не повертає (usage приходить у фінальній події) → такі витрати не потрапляють у лічильник, видно лише в логах спроб.
 - ~~Ліміти в токенах, а не в грошах~~ — закрито на Дні 8 (стеля в $).
 
-**Чеклист безпечного старту в AWS (тиждень 3–4, новий акаунт на Free Plan)**
+**Чеклист безпечного старту в AWS (тиждень 3–4, новий акаунт на Free Plan)** — розгорнуто в `docs/runbooks/aws-account-setup.md` (День 15)
 1. Реєстрація на Free Plan; root — лише для білінгу, одразу MFA.
 2. IAM Identity Center або IAM-користувач із least privilege для Terraform; жодних access keys у root.
 3. AWS Budgets: алерт на витрату кредитів (поріг $1 фактичних витрат + алерти на 50/80% кредитів).
@@ -368,6 +368,37 @@ dwellio/
 - **ADR-006:** `t3.micro` (1 ГБ) + swap проти `t3.small` (2 ГБ) на кредитах. Порахувати RAM процесів (php-fpm, Reverb, 2 воркери, PostgreSQL, Redis, RabbitMQ) і вирішити, що з observability живе на інстансі, а що — лише локально.
 - Ліміти витрат у консолях Anthropic і Voyage (запобіжник білінгу поверх $-стелі застосунку).
 
+*Як реалізовано (2026-11-26):*
+- **Ручну частину оформлено ранбуком** `docs/runbooks/aws-account-setup.md` (кроки 1–4, 6, 8: Free Plan, root + MFA без ключів, IAM Identity Center з MFA при кожному вході, permission sets `DwellioAdmin` / `DwellioTerraform`, spend limits в Anthropic / Voyage). Кроки консолі не автоматизуємо: це корінь довіри для самого Terraform. Сам акаунт створюєш ти за ранбуком; код до нього готовий і пройшов `validate`.
+- **`terraform/bootstrap`** — окремий стек із локальним state (секретів у ньому немає), який переживає `destroy` проду:
+  - state-бакет `dwellio-tfstate-{account_id}` (ім'я детерміноване з ID акаунта — без `CHANGE-ME`): versioning, SSE-S3, public access block, TLS-only, lifecycle на старі версії (10 останніх / 90 днів), `prevent_destroy`;
+  - **два бюджети замість одного.** Знахідка: бюджет за замовчуванням рахує витрати *після* кредитів, тобто на Free Plan показує $0 і ніколи не спрацює. Тому `dwellio-net-spend` ($1, `include_credit = true` — гроші з картки) і `dwellio-credit-burn` ($15/міс, `include_credit = false` — швидкість витрати кредитів; 50/80% факт + 100% прогноз). Бюджет із `envs/prod` перенесено сюди: `terraform destroy` вимикав би алерти разом із сервером;
+  - **IAM deployer** `dwellio-terraform-deployer` (після `[review]`, див. нижче): state — лише ключ `dwellio/prod/*`; EC2 — **allow-list** ≈ 45 дій під ресурси модулів `network` і `ec2`, лише в `eu-central-1`, + Deny на типи інстансів поза `t3.micro/t3.small` (і `RunInstances`, і `ModifyInstanceAttribute`) та на root-диск не `gp3` або > 30 ГБ; S3 — лише конфігурація бакетів `dwellio-backups-*` свого акаунта (`aws:ResourceAccount`), без `GetObject`; IAM — лише ролі й профілі `dwellio-prod-*`, `PassRole` лише сервісу EC2, `AttachRolePolicy` лише `AmazonSSMManagedInstanceCore`;
+  - **запобіжники акаунта** (`account_guardrails.tf`): S3 Block Public Access на весь акаунт, заборона публічних snapshot EBS і AMI. Deployer не має прав їх змінити;
+  - **permissions boundary** `dwellio-workload-boundary`: `CreateRole` дозволено лише з ним, `DeleteRolePermissionsBoundary` — явний Deny. Стеля для ролей: агент SSM, `ssm:GetParameter*` лише `/dwellio/*` (День 18), `kms:Decrypt` лише через SSM, `s3:PutObject` у бекапи (День 20).
+- **`envs/prod`:** `allowed_account_ids` в обох стеках (apply не в той акаунт неможливий), роль інстансу з boundary, `backup_bucket_name` з validation на префікс `dwellio-backups-`, `instance_type = t3.small`, swap 1 ГБ (ADR-006). `backend.hcl.example` / `terraform.tfvars.example` оновлено.
+- **Makefile:** `aws-sso-setup`, `aws-login`, `aws-whoami` (AWS CLI в Docker, `~/.aws` монтується, device code flow — браузер Windows), `tf-bootstrap-plan/apply`, `tf-init`, `tf-plan` → `tf-apply` (застосовується саме збережений план), `tf-destroy`. `tf-validate` перевіряє обидва стеки; у GitHub Actions — matrix `bootstrap` / `envs/prod`, у GitLab — цикл.
+- **ADR-006 — `t3.small` + swap 1 ГБ.** Виміряли RAM: застосунок ≈ 600 МБ у простої на dev-образах, прогноз піку з ОС ≈ 1.2 ГБ. Тобто `t3.micro` (≈ 900 МБ доступно) не вміщує навіть сам застосунок, а swap на EBS б'є по p95. Різниця ≈ $0.012/год ≈ $9 за 6 міс у режимі «4 год/день». На сервері — полегшена observability (Prometheus/Loki з retention 72 год, Grafana, стеля ≈ 384 МБ); довга історія й експерименти — лише локально. Звідси ж параметри для Дня 16: php-fpm `max_children = 4`, Postgres `max_connections = 30`, RabbitMQ watermark 200 МБ, Redis `noeviction` (LRU тихо витіснив би лічильники бюджету й rate limit).
+  - *Як розповідати на співбесіді:* «Я не вгадував розмір інстансу, а виміряв RSS процесів і порахував бюджет пам'яті. І знаю, коли рішення переглянути: > 80% RAM або swap-in під навантаженням».
+
+*`[review]` IAM-політик (того ж дня) і виправлення:*
+- **H1 FinOps / H2 дані:** перша версія мала `ec2:*` у регіоні з Deny-списком. Повз нього проходили capacity reservations і capacity blocks (оплата без запущеного інстансу, будь-який тип), `CreateVolume` / `ModifyVolume` (io2 на 64k IOPS), `RequestSpotInstances`, interface endpoints, IPAM, а також `CreateSnapshot` + `ModifySnapshotAttribute` / `ModifyImageAttribute` / VPC peering — тобто копію диска з PostgreSQL можна було віддати чужому акаунту. **Фікс:** allow-list дій + Deny на тип і розмір root-диска + account-level заборона публічних snapshot/AMI. Deny-список NAT/VPN став зайвим і видалений: цих дій просто немає серед дозволених.
+- **M1:** ARN S3 не містить акаунта → `dwellio-backups-*` підходив і під чужі бакети (для deployer і для boundary ролі сервера). **Фікс:** `aws:ResourceAccount` у кожному S3-statement, крім `CreateBucket` (бакет можна створити лише у своєму акаунті, а умова на неіснуючий ресурс ризикує зламати apply).
+- **M2:** `s3:*` давав deployer вимкнути bucket-level public access block і зробити дампи публічними. **Фікс:** `aws_s3_account_public_access_block` у bootstrap + точний список S3-дій замість `s3:*`; заодно прибрано `GetObject` — deployer більше не читає дампи.
+- **M3 (не закривається IAM):** хто деплоїть — той має доступ до секретів (через `user_data`, новий інстанс з роллю, або trust ролі до чужого акаунта, який переживе відкликання сесії). Записано в ранбук як межа least privilege; закриття — SCP або алерт CloudTrail (тиждень 5).
+- **L1:** Deny на зміну типу переписано на `ForAnyValue:StringNotEquals` (ключ `ec2:Attribute/InstanceType` багатозначний і є лише в запитах, що міняють тип). Ключ не підтверджено офіційним довідником → перевірка в IAM Policy Simulator додана в ранбук (крок 7). **L2:** у boundary `s3:ListBucket` тепер лише на ARN бакета.
+  - *Урок:* deny-list у IAM — це список того, що ти встиг згадати. Allow-list — список того, що тобі справді потрібно.
+
+*Known issues Дня 15:*
+- Allow-list EC2 зібрано з коду модулів, а не з CloudTrail: перший `plan`/`apply` може впасти з `AccessDenied` на якусь `Describe`/`Get`-дію провайдера — додати саме її (тиждень 5: звірити з `iamlive`).
+- Deployer видаляє об'єкти й версії в бакеті бекапів (потрібно для `force_destroy` демо-середовища). Для справжнього проду — `force_destroy = false` і Object Lock.
+- Deployer ≈ власник секретів проду (M3 вище); SCP недоступні без AWS Organizations.
+- Розмір deployer-політики — 5 334 з 6 144 символів (minified JSON, виміряно офлайн-планом). Розширення на Дні 17 (OIDC, роль CI) не влізе → винести IAM-частину в окрему `dwellio-terraform-deployer-iam` (до permission set і ролі можна прикріпити кілька політик).
+- Прогноз пам'яті для проду розрахунковий (dev-образи, простій). Звірити з `docker stats` на EC2 (День 16).
+- Ціни EC2 взято з агрегаторів, а не з AWS Price List. Звірити в Pricing Calculator перед першим `apply`.
+- Spend limit Voyage не перевірено (чи є він узагалі) — ранбук велить перевірити в dashboard.
+- День 17 (OIDC-роль CI) потребує розширити deployer (`iam:CreateOpenIDConnectProvider`, роль CI) і boundary (`ssm:SendCommand` на свій інстанс) — це зміна в bootstrap під адмін-профілем, так і задумано.
+
 **День 16 — прод-образ і перший деплой**
 - Multi-stage Dockerfile: `composer install --no-dev`, зібраний Vite, OPcache; php-fpm або FrankenPHP замість `artisan serve` (known issue Дня 12). Один образ — API, Reverb, воркери з різними командами.
 - `compose.prod.yaml` (профіль `prod-light`): ліміти пам'яті під обраний інстанс, Caddy з автоматичним TLS (домен на Elastic IP через `sslip.io` або власний), Redis і RabbitMQ лише у внутрішній мережі з паролями (known issue Дня 6 про secret у pub/sub Reverb).
@@ -403,7 +434,7 @@ dwellio/
 - ~~ADR-003: pgvector проти окремого vector store.~~ Прийнято.
 - ~~ADR-004: Prism проти Laravel AI SDK (Laravel 13).~~ Прийнято.
 - ADR-005: Reverb і стрімінг із воркера (номер зайнято на Дні 6, див. `docs/adr/README.md`).
-- ADR-006: `t3.micro` + swap проти `t3.small` на кредитах (тиждень 3).
+- ~~ADR-006: `t3.micro` + swap проти `t3.small` на кредитах.~~ Прийнято: `t3.small` + swap 1 ГБ.
 ## Джерела
  
 - AWS: https://aws.amazon.com/about-aws/whats-new/2025/07/aws-free-tier-credits-month-free-plan

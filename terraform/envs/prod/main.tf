@@ -1,8 +1,12 @@
-# Prod-light (тиждень 3): один EC2 з Docker Compose + бакет для бекапів + бюджетний алерт.
+# Prod-light (тиждень 3): один EC2 з Docker Compose + бакет для бекапів.
+# Передумова — terraform/bootstrap (state-бакет, бюджети, IAM deployer + boundary), див. docs/runbooks/aws-account-setup.md.
 # `terraform destroy` після демо — кредити Free Plan мають прожити всі 6 місяців.
 
 provider "aws" {
   region = var.region
+
+  # Запобіжник від apply не в той акаунт (кілька профілів SSO на одній машині).
+  allowed_account_ids = [var.aws_account_id]
 
   default_tags {
     tags = {
@@ -15,6 +19,8 @@ provider "aws" {
 
 locals {
   name = "dwellio-prod"
+  # Створюється в bootstrap; deployer-політика не дозволить CreateRole без нього.
+  permissions_boundary_arn = "arn:aws:iam::${var.aws_account_id}:policy/dwellio-workload-boundary"
 }
 
 module "network" {
@@ -35,9 +41,10 @@ module "s3_backup" {
 module "iam" {
   source = "../../modules/iam"
 
-  name              = local.name
-  backup_bucket_arn = module.s3_backup.bucket_arn
-  backup_prefix     = module.s3_backup.prefix
+  name                     = local.name
+  permissions_boundary_arn = local.permissions_boundary_arn
+  backup_bucket_arn        = module.s3_backup.bucket_arn
+  backup_prefix            = module.s3_backup.prefix
 }
 
 module "ec2" {
@@ -50,32 +57,4 @@ module "ec2" {
   instance_profile_name = module.iam.instance_profile_name
 }
 
-# Друга лінія FinOps-захисту поруч із ручним алертом на $1 із чеклиста:
-# фактичні витрати > 50% / 80% місячного ліміту і прогноз > 100% → лист.
-resource "aws_budgets_budget" "monthly" {
-  name         = "${local.name}-monthly"
-  budget_type  = "COST"
-  limit_amount = var.monthly_budget_usd
-  limit_unit   = "USD"
-  time_unit    = "MONTHLY"
-
-  dynamic "notification" {
-    for_each = [50, 80]
-
-    content {
-      comparison_operator        = "GREATER_THAN"
-      threshold                  = notification.value
-      threshold_type             = "PERCENTAGE"
-      notification_type          = "ACTUAL"
-      subscriber_email_addresses = [var.alert_email]
-    }
-  }
-
-  notification {
-    comparison_operator        = "GREATER_THAN"
-    threshold                  = 100
-    threshold_type             = "PERCENTAGE"
-    notification_type          = "FORECASTED"
-    subscriber_email_addresses = [var.alert_email]
-  }
-}
+# Бюджетні алерти — у terraform/bootstrap: вони мають пережити `terraform destroy` цього стеку.
