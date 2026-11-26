@@ -52,7 +52,10 @@ return [
         | Денна стеля токенів (input + output) на кожну ціль, лічильники в Redis (ключі ai:tokens:*).
         | Скидається опівночі UTC. Вичерпано → провайдера не викликаємо: пошук деградує до SQL/FTS,
         | генерація відповідає 503 з Retry-After. Окремі бюджети = переіндексація не «з'їсть» генерацію.
-        | Орієнтир для Claude Haiku: 500k токенів ≈ $0.5–2 на день (перевіряйте актуальні ціни).
+        |
+        | Поверх токенів — спільна стеля в доларах для ВСІХ платних викликів (ключі ai:cost:*):
+        | денна скидається опівночі UTC, місячна — 1-го числа. Безкоштовні виклики (Ollama, Fake)
+        | $-стелею не блокуються. 0 = аварійний вимикач: жодного платного виклику.
         */
         'budget' => [
             // null = сховище кешу за замовчуванням (CACHE_STORE=redis); у тестах — array.
@@ -62,6 +65,27 @@ return [
                 'query_parsing' => (int) env('AI_BUDGET_QUERY_PARSING_DAILY', 500_000),
                 'generation' => (int) env('AI_BUDGET_GENERATION_DAILY', 1_000_000),
             ],
+            'daily_usd' => (float) env('AI_BUDGET_USD_DAILY', 1.0),
+            'monthly_usd' => (float) env('AI_BUDGET_USD_MONTHLY', 10.0),
+        ],
+
+        /*
+        | Ціни в USD за 1M токенів (перевірено 2026-11-26: platform.claude.com, docs.voyageai.com/docs/pricing).
+        | Ціна береться за ID моделі з AI_*_MODEL. Невідома платна модель → fallback (навмисно дорогий)
+        | + warning у лог: забута ціна має швидше вичерпати стелю, а не рахуватися як $0.
+        | Не враховано: знижки prompt caching / Batch API, безкоштовні 200M токенів Voyage,
+        | вища ціна Haiku 5.5 для промптів > 100K токенів (наші промпти — одиниці тисяч).
+        */
+        'pricing' => [
+            'free_providers' => ['ollama'],
+            'models' => [
+                'claude-haiku-5-5' => ['input' => 0.10, 'output' => 0.50],
+                'claude-sonnet-5-5' => ['input' => 2.00, 'output' => 10.00],
+                'voyage-4-lite' => ['input' => 0.02, 'output' => 0.0],
+                'voyage-4' => ['input' => 0.06, 'output' => 0.0],
+                'voyage-4-large' => ['input' => 0.12, 'output' => 0.0],
+            ],
+            'fallback' => ['input' => 4.00, 'output' => 20.00],
         ],
     ],
 

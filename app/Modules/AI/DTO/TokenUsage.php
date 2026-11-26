@@ -6,7 +6,7 @@ namespace App\Modules\AI\DTO;
 
 use App\Modules\AI\Enums\AiPurpose;
 
-/** Знімок денного споживання токенів для однієї цілі. */
+/** Знімок денного споживання токенів (і їхньої вартості) для однієї цілі. */
 final readonly class TokenUsage
 {
     public function __construct(
@@ -16,6 +16,7 @@ final readonly class TokenUsage
         public int $outputTokens,
         public int $calls,
         public int $dailyLimit,
+        public int $costMicroUsd = 0,
     ) {}
 
     public function total(): int

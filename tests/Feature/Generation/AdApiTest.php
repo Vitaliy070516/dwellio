@@ -2,12 +2,14 @@
 
 declare(strict_types=1);
 
+use App\Modules\AI\Contracts\TokenBudget;
 use App\Modules\AI\Enums\AiPurpose;
 use App\Modules\Generation\Enums\AdFailure;
 use App\Modules\Generation\Enums\AdStatus;
 use App\Modules\Generation\Jobs\GenerateListingAdJob;
 use App\Modules\Generation\Models\ListingAd;
 use App\Modules\Listings\Models\Listing;
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Bus\Dispatcher;
 use Illuminate\Support\Facades\Queue;
 
@@ -151,4 +153,28 @@ it('answers 503 with Retry-After and queues nothing once the daily generation bu
     expect((int) $response->headers->get('Retry-After'))->toBeGreaterThan(0)->toBeLessThanOrEqual(86400);
     $this->assertDatabaseCount('listing_ads', 0);
     Queue::assertNothingPushed();
+});
+
+it('answers 503 until next month once the monthly spend cap is reached by a paid model', function (): void {
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-11-30 23:00:00', 'UTC'));
+    config([
+        'dwellio.ai.generation.driver' => 'laravel-ai',
+        'dwellio.ai.generation.provider' => 'anthropic',
+        'dwellio.ai.generation.model' => 'claude-sonnet-5-5',
+        'dwellio.ai.budget.daily_usd' => 100,
+        'dwellio.ai.budget.monthly_usd' => 0.01,
+    ]);
+    app()->forgetInstance(TokenBudget::class);
+    // 1 000 output × $10 / 1M = $0.01 — рівно місячна стеля.
+    app(TokenBudget::class)->record(AiPurpose::Generation, 0, 1000);
+    $listing = Listing::factory()->active()->create();
+
+    $response = $this->postJson("/api/listings/{$listing->id}/ads", ['platform' => 'olx'])
+        ->assertServiceUnavailable()
+        ->assertJsonPath('message', 'Monthly AI budget is exhausted. Try again next month.');
+
+    expect($response->headers->get('Retry-After'))->toBe('3600');
+    Queue::assertNothingPushed();
+
+    CarbonImmutable::setTestNow();
 });

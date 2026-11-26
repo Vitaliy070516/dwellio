@@ -19,8 +19,10 @@ use App\Modules\AI\Services\FakeTextStreamClient;
 use App\Modules\AI\Services\LaravelAiEmbeddingClient;
 use App\Modules\AI\Services\LaravelAiStructuredOutputClient;
 use App\Modules\AI\Services\LaravelAiTextStreamClient;
+use App\Modules\AI\Services\PriceCatalog;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\ServiceProvider;
 use InvalidArgumentException;
 
@@ -41,7 +43,33 @@ final class AIServiceProvider extends ServiceProvider
                 $limits[$purpose->value] = config()->integer("dwellio.ai.budget.daily_tokens.{$purpose->value}");
             }
 
-            return new CacheTokenBudget(Cache::store(is_string($store) && $store !== '' ? $store : null), $limits);
+            $catalog = PriceCatalog::fromConfig(config()->array('dwellio.ai.pricing'));
+            $prices = [];
+            foreach (AiPurpose::cases() as $purpose) {
+                $section = self::configSection($purpose);
+                [$driver, $provider, $model] = [
+                    config()->string("dwellio.ai.{$section}.driver"),
+                    config()->string("dwellio.ai.{$section}.provider"),
+                    config()->string("dwellio.ai.{$section}.model"),
+                ];
+
+                if (! $catalog->knows($driver, $provider, $model)) {
+                    // Раз на процес (singleton), а не на кожен виклик.
+                    Log::warning('AI model has no price in dwellio.ai.pricing, using the fallback price.', [
+                        'purpose' => $purpose->value, 'provider' => $provider, 'model' => $model,
+                    ]);
+                }
+
+                $prices[$purpose->value] = $catalog->resolve($driver, $provider, $model);
+            }
+
+            return new CacheTokenBudget(
+                cache: Cache::store(is_string($store) && $store !== '' ? $store : null),
+                dailyLimits: $limits,
+                prices: $prices,
+                dailySpendCapMicroUsd: self::microUsd(config('dwellio.ai.budget.daily_usd')),
+                monthlySpendCapMicroUsd: self::microUsd(config('dwellio.ai.budget.monthly_usd')),
+            );
         });
 
         $this->app->singleton(FakeEmbeddingClient::class, static fn (): FakeEmbeddingClient => new FakeEmbeddingClient(
@@ -106,6 +134,22 @@ final class AIServiceProvider extends ServiceProvider
 
             return new BudgetedTextStreamClient($inner, $this->app->make(TokenBudget::class));
         });
+    }
+
+    /** Секція config/dwellio.php → ai, де задано driver / provider / model цілі. */
+    private static function configSection(AiPurpose $purpose): string
+    {
+        return match ($purpose) {
+            AiPurpose::Embeddings => 'embeddings',
+            AiPurpose::QueryParsing => 'llm',
+            AiPurpose::Generation => 'generation',
+        };
+    }
+
+    /** Не config()->float(): `5` і `5.0` мають бути рівнозначні. Не число → 0, тобто fail closed для платних викликів. */
+    private static function microUsd(mixed $usd): int
+    {
+        return is_numeric($usd) ? (int) round(max(0.0, (float) $usd) * 1_000_000) : 0;
     }
 
     public function boot(): void

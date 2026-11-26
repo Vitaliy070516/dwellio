@@ -10,12 +10,12 @@ use Carbon\CarbonImmutable;
 use Illuminate\Console\Command;
 use Throwable;
 
-/** Денне споживання токенів проти бюджету: швидка відповідь на «скільки ми сьогодні витратили». */
+/** Денне споживання токенів і $ проти бюджетів: швидка відповідь на «скільки ми сьогодні витратили». */
 final class ShowTokenUsage extends Command
 {
     protected $signature = 'ai:usage {--date= : День у UTC (Y-m-d), за замовчуванням сьогодні}';
 
-    protected $description = 'Show today\'s AI token usage against the daily budgets';
+    protected $description = 'Show AI token usage and spend against the daily and monthly budgets';
 
     public function handle(TokenBudget $budget): int
     {
@@ -46,13 +46,31 @@ final class ShowTokenUsage extends Command
                 number_format($usage->outputTokens),
                 number_format($usage->total()),
                 number_format($usage->dailyLimit),
-                $usage->dailyLimit > 0 ? sprintf('%.1f%%', 100 * $usage->total() / $usage->dailyLimit) : '—',
+                self::percent($usage->total(), $usage->dailyLimit),
+                self::usd($usage->costMicroUsd),
             ];
         }
 
-        $this->info(sprintf('AI token usage for %s (UTC)', $date ?? CarbonImmutable::now('UTC')->toDateString()));
-        $this->table(['purpose', 'calls', 'input', 'output', 'total', 'daily limit', 'used'], $rows);
+        $spend = $budget->spend($date);
+
+        $this->info(sprintf('AI token usage for %s (UTC)', $spend->date));
+        $this->table(['purpose', 'calls', 'input', 'output', 'total', 'daily limit', 'used', 'cost'], $rows);
+        $this->table(['spend', 'cost', 'cap', 'used'], [
+            ['day '.$spend->date, self::usd($spend->dailyMicroUsd), self::usd($spend->dailyCapMicroUsd), self::percent($spend->dailyMicroUsd, $spend->dailyCapMicroUsd)],
+            ['month '.$spend->month, self::usd($spend->monthlyMicroUsd), self::usd($spend->monthlyCapMicroUsd), self::percent($spend->monthlyMicroUsd, $spend->monthlyCapMicroUsd)],
+        ]);
 
         return self::SUCCESS;
+    }
+
+    /** 4 знаки після коми: один пошуковий запит на Haiku коштує соті частки цента. */
+    private static function usd(int $microUsd): string
+    {
+        return sprintf('$%.4f', $microUsd / 1_000_000);
+    }
+
+    private static function percent(int $used, int $limit): string
+    {
+        return $limit > 0 ? sprintf('%.1f%%', 100 * $used / $limit) : '—';
     }
 }
