@@ -69,7 +69,9 @@ it('returns 409 for a double click instead of paying for a second LLM call', fun
     $listing = Listing::factory()->active()->create();
 
     $this->postJson("/api/listings/{$listing->id}/ads", ['platform' => 'olx'])->assertAccepted();
-    $this->postJson("/api/listings/{$listing->id}/ads", ['platform' => 'olx'])->assertConflict();
+    $this->postJson("/api/listings/{$listing->id}/ads", ['platform' => 'olx'])
+        ->assertConflict()
+        ->assertJsonPath('code', 'ad_generation_in_progress');
 
     Queue::assertPushed(GenerateListingAdJob::class, 1);
     $this->assertDatabaseCount('listing_ads', 1);
@@ -105,7 +107,10 @@ it('answers 503 and closes the record when RabbitMQ is unavailable', function ()
     $listing = Listing::factory()->active()->create();
     $this->mock(Dispatcher::class)->shouldReceive('dispatch')->andThrow(new RuntimeException('AMQP connection refused'));
 
-    $this->postJson("/api/listings/{$listing->id}/ads", ['platform' => 'olx'])->assertServiceUnavailable();
+    $this->postJson("/api/listings/{$listing->id}/ads", ['platform' => 'olx'])
+        ->assertServiceUnavailable()
+        ->assertJsonPath('code', 'queue_unavailable')
+        ->assertHeaderMissing('Retry-After');
 
     $ad = ListingAd::query()->sole();
     expect($ad->status)->toBe(AdStatus::Failed)->and($ad->failure_code)->toBe(AdFailure::QueueUnavailable);
@@ -117,7 +122,9 @@ it('rate-limits generation requests per IP', function (): void {
 
     $this->postJson("/api/listings/{$listings[0]->id}/ads", ['platform' => 'olx'])->assertAccepted();
     $this->postJson("/api/listings/{$listings[1]->id}/ads", ['platform' => 'olx'])->assertAccepted();
-    $this->postJson("/api/listings/{$listings[2]->id}/ads", ['platform' => 'olx'])->assertTooManyRequests();
+    $this->postJson("/api/listings/{$listings[2]->id}/ads", ['platform' => 'olx'])
+        ->assertTooManyRequests()
+        ->assertJsonPath('code', 'rate_limited');
 });
 
 it('shows the result only to the holder of the token', function (): void {
@@ -171,7 +178,9 @@ it('answers 503 until next month once the monthly spend cap is reached by a paid
 
     $response = $this->postJson("/api/listings/{$listing->id}/ads", ['platform' => 'olx'])
         ->assertServiceUnavailable()
-        ->assertJsonPath('message', 'Monthly AI budget is exhausted. Try again next month.');
+        ->assertHeader('Content-Type', 'application/problem+json')
+        ->assertJsonPath('code', 'ai_budget_exhausted')
+        ->assertJsonPath('detail', 'Monthly AI budget is exhausted. Try again next month.');
 
     expect($response->headers->get('Retry-After'))->toBe('3600');
     Queue::assertNothingPushed();

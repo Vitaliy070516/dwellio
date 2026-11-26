@@ -1,0 +1,1637 @@
+{
+    "openapi": "3.1.2",
+    "info": {
+        "title": "Dwellio API",
+        "version": "0.1.0",
+        "description": "Dwellio \u2014 AI-\u043f\u043e\u043c\u0456\u0447\u043d\u0438\u043a \u0434\u043b\u044f \u043e\u0440\u0435\u043d\u0434\u0438 \u0436\u0438\u0442\u043b\u0430 \u0432 \u041a\u0438\u0454\u0432\u0456: \u0433\u0456\u0431\u0440\u0438\u0434\u043d\u0438\u0439 \u043f\u043e\u0448\u0443\u043a (pgvector + FTS + trigram, RRF)\n\u0456 \u0444\u043e\u043d\u043e\u0432\u0430 \u0433\u0435\u043d\u0435\u0440\u0430\u0446\u0456\u044f \u043e\u0433\u043e\u043b\u043e\u0448\u0435\u043d\u044c \u0434\u043b\u044f OLX / rieltor.ua \u0437\u0456 \u0441\u0442\u0440\u0456\u043c\u0456\u043d\u0433\u043e\u043c \u0443 WebSocket (Laravel Reverb).\n\n**\u041f\u043e\u043c\u0438\u043b\u043a\u0438** \u2014 \u0437\u0430\u0432\u0436\u0434\u0438 Problem Details (RFC 9457, `application/problem+json`) \u0437 \u043c\u0430\u0448\u0438\u043d\u043e\u0447\u0438\u0442\u043d\u0438\u043c\n\u043f\u043e\u043b\u0435\u043c `code` (\u0441\u0445\u0435\u043c\u0430 `Problem`). `429` \u0456 `503 ai_budget_exhausted` \u043d\u0435\u0441\u0443\u0442\u044c `Retry-After` \u0443 \u0441\u0435\u043a\u0443\u043d\u0434\u0430\u0445.\n\n**\u0413\u0435\u043d\u0435\u0440\u0430\u0446\u0456\u044f:** `POST /listings/{id}/ads` \u2192 `202` \u0437 `meta.access_token`. \u0414\u0430\u043b\u0456 \u0437\u0430\u0433\u043e\u043b\u043e\u0432\u043e\u043a\n`X-Ad-Token` \u0434\u043b\u044f `GET /listing-ads/{ad}` \u0456 \u0434\u043b\u044f \u0430\u0432\u0442\u043e\u0440\u0438\u0437\u0430\u0446\u0456\u0457 \u043f\u0440\u0438\u0432\u0430\u0442\u043d\u043e\u0433\u043e \u043a\u0430\u043d\u0430\u043b\u0443 Reverb."
+    },
+    "servers": [
+        {
+            "url": "/api"
+        }
+    ],
+    "paths": {
+        "/listings/{listing}/ads": {
+            "post": {
+                "operationId": "listing-ads.store",
+                "tags": [
+                    "Ad"
+                ],
+                "parameters": [
+                    {
+                        "name": "listing",
+                        "in": "path",
+                        "required": true,
+                        "description": "The listing ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/GenerateAdRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "202": {
+                        "description": "`AdResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/AdResource"
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "properties": {
+                                                "access_token": {
+                                                    "type": "string",
+                                                    "description": "\u041f\u043e\u043a\u0430\u0437\u0443\u0454\u0442\u044c\u0441\u044f \u043e\u0434\u0438\u043d \u0440\u0430\u0437: \u0443 \u0411\u0414 \u043b\u0438\u0448\u0435 \u0445\u0435\u0448. \u041f\u0435\u0440\u0435\u0434\u0430\u0454\u0442\u044c\u0441\u044f \u0432 \u0437\u0430\u0433\u043e\u043b\u043e\u0432\u043a\u0443 X-Ad-Token."
+                                                },
+                                                "token_header": {
+                                                    "type": "string",
+                                                    "const": "X-Ad-Token"
+                                                },
+                                                "auth_endpoint": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "access_token",
+                                                "token_header",
+                                                "auth_endpoint"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "`not_found`",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "allOf": [
+                                        {
+                                            "$ref": "#/components/schemas/Problem"
+                                        },
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "string",
+                                                    "const": "not_found"
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "`ad_generation_in_progress`",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "allOf": [
+                                        {
+                                            "$ref": "#/components/schemas/Problem"
+                                        },
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "string",
+                                                    "const": "ad_generation_in_progress"
+                                                },
+                                                "detail": {
+                                                    "type": "string",
+                                                    "examples": [
+                                                        "Ad generation for this listing and platform is already in progress."
+                                                    ]
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "`queue_unavailable`\n\n`ai_budget_exhausted`",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "anyOf": [
+                                        {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/Problem"
+                                                },
+                                                {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "code": {
+                                                            "type": "string",
+                                                            "const": "queue_unavailable"
+                                                        },
+                                                        "detail": {
+                                                            "type": "string",
+                                                            "examples": [
+                                                                "Ad generation is temporarily unavailable. Try again later."
+                                                            ]
+                                                        }
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/Problem"
+                                                },
+                                                {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "code": {
+                                                            "type": "string",
+                                                            "const": "ai_budget_exhausted"
+                                                        }
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "Retry-After": {
+                                "description": "\u0421\u0435\u043a\u0443\u043d\u0434\u0438 \u0434\u043e \u043f\u043e\u0432\u0442\u043e\u0440\u0443. \u0417\u0430\u0432\u0436\u0434\u0438 \u0454 \u0434\u043b\u044f `rate_limited` \u0456 `ai_budget_exhausted`.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "`rate_limited`",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "allOf": [
+                                        {
+                                            "$ref": "#/components/schemas/Problem"
+                                        },
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "string",
+                                                    "const": "rate_limited"
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "Retry-After": {
+                                "description": "\u0421\u0435\u043a\u0443\u043d\u0434\u0438 \u0434\u043e \u043f\u043e\u0432\u0442\u043e\u0440\u0443. \u0417\u0430\u0432\u0436\u0434\u0438 \u0454 \u0434\u043b\u044f `rate_limited` \u0456 `ai_budget_exhausted`.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed (`code`: `validation_failed`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ValidationProblem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/listing-ads/{ad}": {
+            "get": {
+                "operationId": "listing-ads.show",
+                "tags": [
+                    "Ad"
+                ],
+                "parameters": [
+                    {
+                        "name": "ad",
+                        "in": "path",
+                        "required": true,
+                        "description": "The ad ID",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`AdResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/AdResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "`not_found`",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "allOf": [
+                                        {
+                                            "$ref": "#/components/schemas/Problem"
+                                        },
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "string",
+                                                    "const": "not_found"
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/listings": {
+            "get": {
+                "operationId": "listings.index",
+                "tags": [
+                    "Listing"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated set of `ListingResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/ListingResource"
+                                            }
+                                        },
+                                        "links": {
+                                            "type": "object",
+                                            "properties": {
+                                                "first": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "prev": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "next": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "first",
+                                                "last",
+                                                "prev",
+                                                "next"
+                                            ]
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "properties": {
+                                                "current_page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "from": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "minimum": 1
+                                                },
+                                                "last_page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "links": {
+                                                    "type": "array",
+                                                    "description": "Generated paginator links.",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "url": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "label": {
+                                                                "type": "string"
+                                                            },
+                                                            "active": {
+                                                                "type": "boolean"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "url",
+                                                            "label",
+                                                            "active"
+                                                        ]
+                                                    }
+                                                },
+                                                "path": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "Base path for paginator generated URLs."
+                                                },
+                                                "per_page": {
+                                                    "type": "integer",
+                                                    "description": "Number of items shown per page.",
+                                                    "minimum": 0
+                                                },
+                                                "to": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "description": "Number of the last item in the slice.",
+                                                    "minimum": 1
+                                                },
+                                                "total": {
+                                                    "type": "integer",
+                                                    "description": "Total number of items being paginated.",
+                                                    "minimum": 0
+                                                }
+                                            },
+                                            "required": [
+                                                "current_page",
+                                                "from",
+                                                "last_page",
+                                                "links",
+                                                "path",
+                                                "per_page",
+                                                "to",
+                                                "total"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "links",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "operationId": "listings.store",
+                "summary": "Laravel \u0441\u0430\u043c \u0441\u0442\u0430\u0432\u0438\u0442\u044c 201 \u0434\u043b\u044f \u0449\u043e\u0439\u043d\u043e \u0441\u0442\u0432\u043e\u0440\u0435\u043d\u043e\u0457 \u043c\u043e\u0434\u0435\u043b\u0456; Scramble \u0446\u044c\u043e\u0433\u043e \u043d\u0435 \u0431\u0430\u0447\u0438\u0442\u044c, \u0442\u043e\u0436 \u044f\u0432\u043d\u043e",
+                "tags": [
+                    "Listing"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ListingRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`ListingResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ListingResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed (`code`: `validation_failed`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ValidationProblem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/listings/{listing}": {
+            "get": {
+                "operationId": "listings.show",
+                "tags": [
+                    "Listing"
+                ],
+                "parameters": [
+                    {
+                        "name": "listing",
+                        "in": "path",
+                        "required": true,
+                        "description": "The listing ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`ListingResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ListingResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "`not_found`",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "allOf": [
+                                        {
+                                            "$ref": "#/components/schemas/Problem"
+                                        },
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "string",
+                                                    "const": "not_found"
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "listings.destroy",
+                "tags": [
+                    "Listing"
+                ],
+                "parameters": [
+                    {
+                        "name": "listing",
+                        "in": "path",
+                        "required": true,
+                        "description": "The listing ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "404": {
+                        "description": "`not_found`",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "allOf": [
+                                        {
+                                            "$ref": "#/components/schemas/Problem"
+                                        },
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "string",
+                                                    "const": "not_found"
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "operationId": "listings.update",
+                "tags": [
+                    "Listing"
+                ],
+                "parameters": [
+                    {
+                        "name": "listing",
+                        "in": "path",
+                        "required": true,
+                        "description": "The listing ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ListingRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`ListingResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ListingResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "`not_found`",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "allOf": [
+                                        {
+                                            "$ref": "#/components/schemas/Problem"
+                                        },
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "string",
+                                                    "const": "not_found"
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed (`code`: `validation_failed`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ValidationProblem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/search": {
+            "get": {
+                "operationId": "search",
+                "tags": [
+                    "Search"
+                ],
+                "parameters": [
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "description": "300 \u0441\u0438\u043c\u0432\u043e\u043b\u0456\u0432: \u0437\u0430\u043f\u0438\u0442 \u0456\u0434\u0435 \u0432 LLM \u0456 \u0432 \u0435\u043c\u0431\u0435\u0434\u0438\u043d\u0433, \u0434\u043e\u0432\u0433\u0438\u0439 \u0432\u0432\u0456\u0434 = \u0432\u0438\u0442\u0440\u0430\u0442\u0438 \u0442\u043e\u043a\u0435\u043d\u0456\u0432 (FinOps).",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "maxLength": 300
+                        }
+                    },
+                    {
+                        "name": "price_min",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "integer",
+                                "null"
+                            ],
+                            "minimum": 0
+                        }
+                    },
+                    {
+                        "name": "price_max",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "integer",
+                                "null"
+                            ],
+                            "minimum": 0
+                        }
+                    },
+                    {
+                        "name": "rooms[]",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "array",
+                                "null"
+                            ],
+                            "items": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 10
+                            },
+                            "maxItems": 6
+                        }
+                    },
+                    {
+                        "name": "districts[]",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "array",
+                                "null"
+                            ],
+                            "items": {
+                                "$ref": "#/components/schemas/District"
+                            },
+                            "maxItems": 10
+                        }
+                    },
+                    {
+                        "name": "pets_allowed",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "boolean",
+                                "null"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "furnished",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "boolean",
+                                "null"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "max_metro_distance_m",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "integer",
+                                "null"
+                            ],
+                            "minimum": 0
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "integer",
+                                "null"
+                            ],
+                            "minimum": 1,
+                            "maximum": 50
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`SearchResultResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SearchResultResource"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "`rate_limited`",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "allOf": [
+                                        {
+                                            "$ref": "#/components/schemas/Problem"
+                                        },
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "string",
+                                                    "const": "rate_limited"
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "Retry-After": {
+                                "description": "\u0421\u0435\u043a\u0443\u043d\u0434\u0438 \u0434\u043e \u043f\u043e\u0432\u0442\u043e\u0440\u0443. \u0417\u0430\u0432\u0436\u0434\u0438 \u0454 \u0434\u043b\u044f `rate_limited` \u0456 `ai_budget_exhausted`.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed (`code`: `validation_failed`)",
+                        "content": {
+                            "application/problem+json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ValidationProblem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "AdResource": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "listing_id": {
+                        "type": "integer"
+                    },
+                    "platform": {
+                        "type": "string",
+                        "enum": [
+                            "olx",
+                            "rieltor"
+                        ]
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "queued",
+                            "processing",
+                            "completed",
+                            "failed"
+                        ]
+                    },
+                    "attempt": {
+                        "type": "integer"
+                    },
+                    "title": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "body": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "failure_code": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "enum": [
+                            "provider_unavailable",
+                            "invalid_output",
+                            "timeout",
+                            "listing_unavailable",
+                            "queue_unavailable",
+                            "budget_exceeded",
+                            "stale",
+                            "unknown",
+                            null
+                        ]
+                    },
+                    "model": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "prompt_version": {
+                        "type": "string"
+                    },
+                    "channel": {
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "finished_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    }
+                },
+                "required": [
+                    "id",
+                    "listing_id",
+                    "platform",
+                    "status",
+                    "attempt",
+                    "title",
+                    "body",
+                    "failure_code",
+                    "model",
+                    "prompt_version",
+                    "channel",
+                    "created_at",
+                    "finished_at"
+                ],
+                "title": "AdResource"
+            },
+            "District": {
+                "type": "string",
+                "description": "\u0414\u0435\u0441\u044f\u0442\u044c \u0430\u0434\u043c\u0456\u043d\u0456\u0441\u0442\u0440\u0430\u0442\u0438\u0432\u043d\u0438\u0445 \u0440\u0430\u0439\u043e\u043d\u0456\u0432 \u041a\u0438\u0454\u0432\u0430. \u0423 \u0411\u0414 \u0437\u0431\u0435\u0440\u0456\u0433\u0430\u0454\u0442\u044c\u0441\u044f slug (varchar), \u0430 \u043d\u0435 native enum Postgres \u2014 \u0439\u043e\u0433\u043e \u043f\u0440\u043e\u0441\u0442\u0456\u0448\u0435 \u0437\u043c\u0456\u043d\u044e\u0432\u0430\u0442\u0438 \u043c\u0456\u0433\u0440\u0430\u0446\u0456\u044f\u043c\u0438.\n",
+                "enum": [
+                    "holosiivskyi",
+                    "darnytskyi",
+                    "desnianskyi",
+                    "dniprovskyi",
+                    "obolonskyi",
+                    "pecherskyi",
+                    "podilskyi",
+                    "sviatoshynskyi",
+                    "solomianskyi",
+                    "shevchenkivskyi"
+                ],
+                "title": "District"
+            },
+            "GenerateAdRequest": {
+                "type": "object",
+                "properties": {
+                    "platform": {
+                        "$ref": "#/components/schemas/Platform"
+                    }
+                },
+                "required": [
+                    "platform"
+                ],
+                "title": "GenerateAdRequest"
+            },
+            "ListingRequest": {
+                "type": "object",
+                "description": "\u0421\u043f\u0456\u043b\u044c\u043d\u0456 \u043f\u0440\u0430\u0432\u0438\u043b\u0430 \u0434\u043b\u044f \u0441\u0442\u0432\u043e\u0440\u0435\u043d\u043d\u044f (POST) \u0456 \u043f\u043e\u0432\u043d\u043e\u0457 \u0437\u0430\u043c\u0456\u043d\u0438 (PUT).",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "maxLength": 200
+                    },
+                    "description": {
+                        "type": "string",
+                        "minLength": 10,
+                        "maxLength": 5000
+                    },
+                    "price_uah": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 10000000
+                    },
+                    "rooms": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 10
+                    },
+                    "area_m2": {
+                        "type": "number",
+                        "minimum": 5,
+                        "maximum": 1000
+                    },
+                    "floor": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100
+                    },
+                    "floors_total": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100
+                    },
+                    "district": {
+                        "$ref": "#/components/schemas/District"
+                    },
+                    "address": {
+                        "type": "string",
+                        "maxLength": 255
+                    },
+                    "metro_station": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 64
+                    },
+                    "metro_distance_m": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "minimum": 0,
+                        "maximum": 20000
+                    },
+                    "lat": {
+                        "type": [
+                            "number",
+                            "null"
+                        ],
+                        "description": "\u0413\u0440\u0443\u0431\u0456 \u043c\u0435\u0436\u0456 \u043d\u0430\u0432\u043a\u043e\u043b\u043e \u041a\u0438\u0454\u0432\u0430: \u0432\u0456\u0434\u0441\u0456\u043a\u0430\u044e\u0442\u044c \u043f\u0435\u0440\u0435\u043f\u043b\u0443\u0442\u0430\u043d\u0456 lat/lng.",
+                        "minimum": 50,
+                        "maximum": 51
+                    },
+                    "lng": {
+                        "type": [
+                            "number",
+                            "null"
+                        ],
+                        "minimum": 30,
+                        "maximum": 31
+                    },
+                    "pets_allowed": {
+                        "type": "boolean"
+                    },
+                    "furnished": {
+                        "type": "boolean"
+                    },
+                    "status": {
+                        "$ref": "#/components/schemas/ListingStatus"
+                    }
+                },
+                "required": [
+                    "title",
+                    "description",
+                    "price_uah",
+                    "rooms",
+                    "area_m2",
+                    "floor",
+                    "floors_total",
+                    "district",
+                    "address"
+                ],
+                "title": "ListingRequest"
+            },
+            "ListingResource": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "price_uah": {
+                        "type": "integer"
+                    },
+                    "rooms": {
+                        "type": "integer"
+                    },
+                    "area_m2": {
+                        "type": "number"
+                    },
+                    "floor": {
+                        "type": "integer"
+                    },
+                    "floors_total": {
+                        "type": "integer"
+                    },
+                    "district": {
+                        "type": "string",
+                        "enum": [
+                            "holosiivskyi",
+                            "darnytskyi",
+                            "desnianskyi",
+                            "dniprovskyi",
+                            "obolonskyi",
+                            "pecherskyi",
+                            "podilskyi",
+                            "sviatoshynskyi",
+                            "solomianskyi",
+                            "shevchenkivskyi"
+                        ]
+                    },
+                    "district_label": {
+                        "type": "string",
+                        "enum": [
+                            "\u0413\u043e\u043b\u043e\u0441\u0456\u0457\u0432\u0441\u044c\u043a\u0438\u0439",
+                            "\u0414\u0430\u0440\u043d\u0438\u0446\u044c\u043a\u0438\u0439",
+                            "\u0414\u0435\u0441\u043d\u044f\u043d\u0441\u044c\u043a\u0438\u0439",
+                            "\u0414\u043d\u0456\u043f\u0440\u043e\u0432\u0441\u044c\u043a\u0438\u0439",
+                            "\u041e\u0431\u043e\u043b\u043e\u043d\u0441\u044c\u043a\u0438\u0439",
+                            "\u041f\u0435\u0447\u0435\u0440\u0441\u044c\u043a\u0438\u0439",
+                            "\u041f\u043e\u0434\u0456\u043b\u044c\u0441\u044c\u043a\u0438\u0439",
+                            "\u0421\u0432\u044f\u0442\u043e\u0448\u0438\u043d\u0441\u044c\u043a\u0438\u0439",
+                            "\u0421\u043e\u043b\u043e\u043c'\u044f\u043d\u0441\u044c\u043a\u0438\u0439",
+                            "\u0428\u0435\u0432\u0447\u0435\u043d\u043a\u0456\u0432\u0441\u044c\u043a\u0438\u0439"
+                        ]
+                    },
+                    "address": {
+                        "type": "string"
+                    },
+                    "metro_station": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "metro_distance_m": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
+                    "lat": {
+                        "type": [
+                            "number",
+                            "null"
+                        ]
+                    },
+                    "lng": {
+                        "type": [
+                            "number",
+                            "null"
+                        ]
+                    },
+                    "pets_allowed": {
+                        "type": "boolean"
+                    },
+                    "furnished": {
+                        "type": "boolean"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "draft",
+                            "active",
+                            "archived"
+                        ]
+                    },
+                    "created_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "updated_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    }
+                },
+                "required": [
+                    "id",
+                    "title",
+                    "description",
+                    "price_uah",
+                    "rooms",
+                    "area_m2",
+                    "floor",
+                    "floors_total",
+                    "district",
+                    "district_label",
+                    "address",
+                    "metro_station",
+                    "metro_distance_m",
+                    "lat",
+                    "lng",
+                    "pets_allowed",
+                    "furnished",
+                    "status",
+                    "created_at",
+                    "updated_at"
+                ],
+                "title": "ListingResource"
+            },
+            "ListingStatus": {
+                "type": "string",
+                "enum": [
+                    "draft",
+                    "active",
+                    "archived"
+                ],
+                "title": "ListingStatus"
+            },
+            "MatchSource": {
+                "type": "string",
+                "description": "\u0413\u0456\u043b\u043a\u0430 hybrid search, \u044f\u043a\u0430 \u0437\u043d\u0430\u0439\u0448\u043b\u0430 \u043a\u0432\u0430\u0440\u0442\u0438\u0440\u0443. \u0417\u043d\u0430\u0447\u0435\u043d\u043d\u044f \u0439\u0434\u0443\u0442\u044c \u0443 SQL \u044f\u043a \u043a\u043e\u043d\u0441\u0442\u0430\u043d\u0442\u043d\u0456 \u043b\u0456\u0442\u0435\u0440\u0430\u043b\u0438 \u0439 \u0443 JSON-\u0432\u0456\u0434\u043f\u043e\u0432\u0456\u0434\u044c.\n| |\n|---|\n| `vector` <br/> \u041a\u043e\u0441\u0438\u043d\u0443\u0441\u043d\u0430 \u0431\u043b\u0438\u0437\u044c\u043a\u0456\u0441\u0442\u044c \u0435\u043c\u0431\u0435\u0434\u0438\u043d\u0433\u0456\u0432 (pgvector, HNSW): \u00ab\u0437\u0430 \u0437\u043c\u0456\u0441\u0442\u043e\u043c\u00bb. |\n| `fts` <br/> \u041f\u043e\u0432\u043d\u043e\u0442\u0435\u043a\u0441\u0442\u043e\u0432\u0438\u0439 \u043f\u043e\u0448\u0443\u043a `simple`: \u0442\u043e\u0447\u043d\u0438\u0439 \u0437\u0431\u0456\u0433 \u0441\u043b\u0456\u0432. |\n| `trigram` <br/> pg_trgm word_similarity: \u0432\u0456\u0434\u043c\u0456\u043d\u043a\u0438, \u043e\u0434\u0440\u0443\u043a\u0456\u0432\u043a\u0438, \u0447\u0430\u0441\u0442\u0438\u043d\u0438 \u0441\u043b\u0456\u0432. |",
+                "enum": [
+                    "vector",
+                    "fts",
+                    "trigram"
+                ],
+                "title": "MatchSource"
+            },
+            "Platform": {
+                "type": "string",
+                "description": "\u041c\u0430\u0439\u0434\u0430\u043d\u0447\u0438\u043a\u0438 \u0439 \u0457\u0445\u043d\u0456 \u043e\u0431\u043c\u0435\u0436\u0435\u043d\u043d\u044f. \u041b\u0456\u043c\u0456\u0442\u0438 \u043a\u043e\u043d\u0441\u0435\u0440\u0432\u0430\u0442\u0438\u0432\u043d\u0456 \u0439 \u041d\u0415 \u0437\u0432\u0456\u0440\u0435\u043d\u0456 \u0437 \u0430\u043a\u0442\u0443\u0430\u043b\u044c\u043d\u0438\u043c\u0438 \u043f\u0440\u0430\u0432\u0438\u043b\u0430\u043c\u0438 OLX / rieltor.ua: \u043f\u0435\u0440\u0435\u0432\u0456\u0440\u0438\u0442\u0438 \u043f\u0435\u0440\u0435\u0434 \u0440\u0435\u0430\u043b\u044c\u043d\u043e\u044e \u043f\u0443\u0431\u043b\u0456\u043a\u0430\u0446\u0456\u0454\u044e (known issue).\n",
+                "enum": [
+                    "olx",
+                    "rieltor"
+                ],
+                "title": "Platform"
+            },
+            "Problem": {
+                "type": "object",
+                "description": "Problem Details (RFC 9457), `Content-Type: application/problem+json`. \u041a\u043b\u0456\u0454\u043d\u0442 \u0440\u043e\u0437\u0433\u0430\u043b\u0443\u0436\u0443\u0454\u0442\u044c\u0441\u044f \u0437\u0430 `code`.",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "description": "URN \u0442\u0438\u043f\u0443 \u043f\u0440\u043e\u0431\u043b\u0435\u043c\u0438.",
+                        "examples": [
+                            "urn:dwellio:problem:not_found"
+                        ]
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "\u041d\u0430\u0437\u0432\u0430 HTTP-\u0441\u0442\u0430\u0442\u0443\u0441\u0443.",
+                        "examples": [
+                            "Not Found"
+                        ]
+                    },
+                    "status": {
+                        "type": "integer",
+                        "description": "\u0414\u0443\u0431\u043b\u044e\u0454 HTTP-\u0441\u0442\u0430\u0442\u0443\u0441 \u0432\u0456\u0434\u043f\u043e\u0432\u0456\u0434\u0456.",
+                        "examples": [
+                            404
+                        ]
+                    },
+                    "detail": {
+                        "type": "string",
+                        "description": "\u041f\u043e\u044f\u0441\u043d\u0435\u043d\u043d\u044f \u0434\u043b\u044f \u043b\u044e\u0434\u0438\u043d\u0438; \u043d\u0435 \u0434\u043b\u044f \u0440\u043e\u0437\u0431\u043e\u0440\u0443 \u043a\u043e\u0434\u043e\u043c."
+                    },
+                    "code": {
+                        "type": "string",
+                        "description": "\u041c\u0430\u0448\u0438\u043d\u043e\u0447\u0438\u0442\u043d\u0438\u0439 \u043a\u043e\u0434 \u043f\u043e\u043c\u0438\u043b\u043a\u0438.",
+                        "enum": [
+                            "validation_failed",
+                            "not_found",
+                            "method_not_allowed",
+                            "unauthenticated",
+                            "forbidden",
+                            "rate_limited",
+                            "ad_generation_in_progress",
+                            "ai_budget_exhausted",
+                            "queue_unavailable",
+                            "http_error",
+                            "server_error"
+                        ]
+                    }
+                },
+                "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                ],
+                "title": "Problem"
+            },
+            "SearchHitResource": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "price_uah": {
+                        "type": "integer"
+                    },
+                    "rooms": {
+                        "type": "integer"
+                    },
+                    "area_m2": {
+                        "type": "number"
+                    },
+                    "floor": {
+                        "type": "integer"
+                    },
+                    "floors_total": {
+                        "type": "integer"
+                    },
+                    "district": {
+                        "type": "string",
+                        "enum": [
+                            "holosiivskyi",
+                            "darnytskyi",
+                            "desnianskyi",
+                            "dniprovskyi",
+                            "obolonskyi",
+                            "pecherskyi",
+                            "podilskyi",
+                            "sviatoshynskyi",
+                            "solomianskyi",
+                            "shevchenkivskyi"
+                        ]
+                    },
+                    "district_label": {
+                        "type": "string",
+                        "enum": [
+                            "\u0413\u043e\u043b\u043e\u0441\u0456\u0457\u0432\u0441\u044c\u043a\u0438\u0439",
+                            "\u0414\u0430\u0440\u043d\u0438\u0446\u044c\u043a\u0438\u0439",
+                            "\u0414\u0435\u0441\u043d\u044f\u043d\u0441\u044c\u043a\u0438\u0439",
+                            "\u0414\u043d\u0456\u043f\u0440\u043e\u0432\u0441\u044c\u043a\u0438\u0439",
+                            "\u041e\u0431\u043e\u043b\u043e\u043d\u0441\u044c\u043a\u0438\u0439",
+                            "\u041f\u0435\u0447\u0435\u0440\u0441\u044c\u043a\u0438\u0439",
+                            "\u041f\u043e\u0434\u0456\u043b\u044c\u0441\u044c\u043a\u0438\u0439",
+                            "\u0421\u0432\u044f\u0442\u043e\u0448\u0438\u043d\u0441\u044c\u043a\u0438\u0439",
+                            "\u0421\u043e\u043b\u043e\u043c'\u044f\u043d\u0441\u044c\u043a\u0438\u0439",
+                            "\u0428\u0435\u0432\u0447\u0435\u043d\u043a\u0456\u0432\u0441\u044c\u043a\u0438\u0439"
+                        ]
+                    },
+                    "address": {
+                        "type": "string"
+                    },
+                    "metro_station": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "metro_distance_m": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
+                    "lat": {
+                        "type": [
+                            "number",
+                            "null"
+                        ]
+                    },
+                    "lng": {
+                        "type": [
+                            "number",
+                            "null"
+                        ]
+                    },
+                    "pets_allowed": {
+                        "type": "boolean"
+                    },
+                    "furnished": {
+                        "type": "boolean"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "draft",
+                            "active",
+                            "archived"
+                        ]
+                    },
+                    "created_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "updated_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "match": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "null \u0443 \u0440\u0435\u0436\u0438\u043c\u0456 filters_only: \u0440\u0430\u043d\u0436\u0443\u0432\u0430\u043d\u043d\u044f \u043d\u0435 \u0431\u0443\u043b\u043e.",
+                        "properties": {
+                            "matched_by": {
+                                "type": "array",
+                                "description": "\u0413\u0456\u043b\u043a\u0438 \u043f\u043e\u0448\u0443\u043a\u0443, \u0449\u043e \u0437\u043d\u0430\u0439\u0448\u043b\u0438 \u043a\u0432\u0430\u0440\u0442\u0438\u0440\u0443.",
+                                "items": {
+                                    "$ref": "#/components/schemas/MatchSource"
+                                }
+                            },
+                            "ranks": {
+                                "type": "object",
+                                "description": "\u0413\u0456\u043b\u043a\u0430 \u2192 \u043f\u043e\u0437\u0438\u0446\u0456\u044f \u0432 \u043d\u0456\u0439 (1 = \u043d\u0430\u0439\u043a\u0440\u0430\u0449\u0430).",
+                                "additionalProperties": {
+                                    "type": "integer"
+                                }
+                            },
+                            "score": {
+                                "type": "number",
+                                "description": "\u041f\u0456\u0434\u0441\u0443\u043c\u043a\u043e\u0432\u0438\u0439 RRF-\u0441\u043a\u043e\u0440 (\u0431\u0456\u043b\u044c\u0448\u0435 = \u0432\u0438\u0449\u0435 \u0443 \u0432\u0438\u0434\u0430\u0447\u0456)."
+                            }
+                        },
+                        "required": [
+                            "matched_by",
+                            "ranks",
+                            "score"
+                        ]
+                    }
+                },
+                "required": [
+                    "id",
+                    "title",
+                    "description",
+                    "price_uah",
+                    "rooms",
+                    "area_m2",
+                    "floor",
+                    "floors_total",
+                    "district",
+                    "district_label",
+                    "address",
+                    "metro_station",
+                    "metro_distance_m",
+                    "lat",
+                    "lng",
+                    "pets_allowed",
+                    "furnished",
+                    "status",
+                    "created_at",
+                    "updated_at",
+                    "match"
+                ],
+                "title": "SearchHitResource"
+            },
+            "SearchResultResource": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/SearchHitResource"
+                        }
+                    },
+                    "meta": {
+                        "type": "object",
+                        "properties": {
+                            "mode": {
+                                "type": "string",
+                                "enum": [
+                                    "hybrid",
+                                    "text_only",
+                                    "filters_only"
+                                ]
+                            },
+                            "parsed_by_llm": {
+                                "type": "boolean"
+                            },
+                            "filters": {
+                                "type": "object",
+                                "properties": {
+                                    "price_min": {
+                                        "type": [
+                                            "integer",
+                                            "null"
+                                        ]
+                                    },
+                                    "price_max": {
+                                        "type": [
+                                            "integer",
+                                            "null"
+                                        ]
+                                    },
+                                    "rooms": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "districts": {
+                                        "type": "array",
+                                        "items": {
+                                            "$ref": "#/components/schemas/District"
+                                        }
+                                    },
+                                    "pets_allowed": {
+                                        "type": [
+                                            "boolean",
+                                            "null"
+                                        ]
+                                    },
+                                    "furnished": {
+                                        "type": [
+                                            "boolean",
+                                            "null"
+                                        ]
+                                    },
+                                    "max_metro_distance_m": {
+                                        "type": [
+                                            "integer",
+                                            "null"
+                                        ]
+                                    }
+                                },
+                                "required": [
+                                    "price_min",
+                                    "price_max",
+                                    "rooms",
+                                    "districts",
+                                    "pets_allowed",
+                                    "furnished",
+                                    "max_metro_distance_m"
+                                ]
+                            },
+                            "semantic_query": {
+                                "type": "string"
+                            },
+                            "degraded": {
+                                "type": "object",
+                                "description": "\u0427\u043e\u043c\u0443 AI-\u043a\u0440\u043e\u043a \u043d\u0435 \u0432\u0456\u0434\u043f\u0440\u0430\u0446\u044e\u0432\u0430\u0432 (null = \u0432\u0456\u0434\u043f\u0440\u0430\u0446\u044e\u0432\u0430\u0432 \u0430\u0431\u043e \u043d\u0435 \u0431\u0443\u0432 \u043f\u043e\u0442\u0440\u0456\u0431\u0435\u043d). \u041e\u043a\u0440\u0435\u043c\u043e \u0432\u0456\u0434 `mode`:\n`text_only` \u0447\u0435\u0440\u0435\u0437 \u0431\u044e\u0434\u0436\u0435\u0442 \u0456 \u0447\u0435\u0440\u0435\u0437 \u043f\u0430\u0434\u0456\u043d\u043d\u044f \u043f\u0440\u043e\u0432\u0430\u0439\u0434\u0435\u0440\u0430 \u043a\u043b\u0456\u0454\u043d\u0442 \u043f\u043e\u043a\u0430\u0437\u0443\u0454 \u043f\u043e-\u0440\u0456\u0437\u043d\u043e\u043c\u0443.",
+                                "properties": {
+                                    "query_parsing": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "enum": [
+                                            "provider_unavailable",
+                                            "invalid_output",
+                                            "budget_exceeded",
+                                            null
+                                        ]
+                                    },
+                                    "embeddings": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "enum": [
+                                            "provider_unavailable",
+                                            "invalid_output",
+                                            "budget_exceeded",
+                                            null
+                                        ]
+                                    }
+                                },
+                                "required": [
+                                    "query_parsing",
+                                    "embeddings"
+                                ]
+                            },
+                            "count": {
+                                "type": "integer"
+                            }
+                        },
+                        "required": [
+                            "mode",
+                            "parsed_by_llm",
+                            "filters",
+                            "semantic_query",
+                            "degraded",
+                            "count"
+                        ]
+                    }
+                },
+                "required": [
+                    "data",
+                    "meta"
+                ],
+                "title": "SearchResultResource"
+            },
+            "ValidationProblem": {
+                "allOf": [
+                    {
+                        "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                        "type": "object",
+                        "properties": {
+                            "code": {
+                                "type": "string",
+                                "const": "validation_failed"
+                            },
+                            "errors": {
+                                "type": "object",
+                                "description": "\u041f\u043e\u043c\u0438\u043b\u043a\u0438 \u043f\u043e \u043f\u043e\u043b\u044f\u0445: `{\"price_max\": [\"The price max field must be an integer.\"]}`.",
+                                "additionalProperties": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        },
+                        "required": [
+                            "errors"
+                        ]
+                    }
+                ],
+                "title": "ValidationProblem"
+            }
+        }
+    }
+}

@@ -52,7 +52,9 @@ final readonly class SearchFilters
     }
 
     /**
-     * @return array<string, mixed>
+     * Точна форма — і для PHPStan, і для OpenAPI (Scramble не виводить тип елементів з array_map).
+     *
+     * @return array{price_min: int|null, price_max: int|null, rooms: list<int>, districts: list<value-of<District>>, pets_allowed: bool|null, furnished: bool|null, max_metro_distance_m: int|null}
      */
     public function toArray(): array
     {

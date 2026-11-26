@@ -35,6 +35,11 @@ final class ListingController extends Controller
         return new ListingResource($listing);
     }
 
+    /**
+     * Laravel сам ставить 201 для щойно створеної моделі; Scramble цього не бачить, тож явно.
+     *
+     * @status 201
+     */
     public function store(ListingRequest $request, CreateListing $action): ListingResource
     {
         return new ListingResource($action->handle($request->toData()));

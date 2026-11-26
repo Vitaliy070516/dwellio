@@ -55,3 +55,22 @@ arch('No module depends on the web layer')
 arch('Web layer is thin: no DB facade, no AI services, no actions with side effects')
     ->expect('App\Web')
     ->not->toUse(['Illuminate\Support\Facades\DB', 'App\Modules\AI', 'App\Modules\Generation\Actions', 'App\Modules\Listings\Actions']);
+
+/*
+ * Помилки API (День 11): доменні винятки не знають про HTTP — їх ловлять і Job-и, і консольні команди.
+ * Переклад «доменний виняток → ApiProblem (статус + code)» робить лише HTTP-шар модуля.
+ */
+arch('Domain exceptions are HTTP-agnostic')
+    ->expect(['App\Modules\AI\Exceptions', 'App\Modules\Generation\Exceptions'])
+    ->not->toExtend('Symfony\Component\HttpKernel\Exception\HttpException')
+    ->not->toUse('App\Shared\Http');
+
+arch('ApiProblem is thrown only by the HTTP layer')
+    ->expect('App\Shared\Http\Problems\ApiProblem')
+    ->toOnlyBeUsedIn([
+        'App\Shared\Http',
+        'App\Shared\OpenApi',
+        'App\Modules\Listings\Http',
+        'App\Modules\Search\Http',
+        'App\Modules\Generation\Http',
+    ]);

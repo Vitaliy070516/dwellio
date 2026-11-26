@@ -6,7 +6,7 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
     plugins: [
         laravel({
-            input: ['resources/css/app.css', 'resources/js/search.js', 'resources/js/listing.js'],
+            input: ['resources/css/app.css', 'resources/js/search.js', 'resources/js/listing.js', 'resources/js/api-docs.js'],
             refresh: true,
             fonts: [
                 bunny('Instrument Sans', {
@@ -16,6 +16,10 @@ export default defineConfig({
         }),
         tailwindcss(),
     ],
+    build: {
+        // Swagger UI (~1.6 МБ, 450 кБ gzip) вантажиться лише на /docs/api; решта сторінок його не тягне.
+        chunkSizeWarningLimit: 1700,
+    },
     server: {
         watch: {
             ignored: ['**/storage/framework/views/**'],

@@ -127,7 +127,7 @@ export function mountAdGenerator(root) {
         if (!res || res.status !== 202) {
             ui.busy(false);
             ui.status('');
-            rejectRequest(res);
+            await rejectRequest(res);
             return;
         }
 
@@ -136,26 +136,37 @@ export function mountAdGenerator(root) {
         session = new GenerationSession(data, meta, ui);
     }
 
-    function rejectRequest(res) {
-        const retryAfter = Number(res?.headers.get('Retry-After'));
-
+    async function rejectRequest(res) {
         if (!res) {
             ui.notice('error', 'error', 'Сервер недоступний. Перевірте з\'єднання.');
-        } else if (res.status === 503 && retryAfter > 0) {
-            // 503 + Retry-After = вичерпано спільний бюджет AI (див. AdController::store).
-            ui.notice('budget', 'warning',
-                `Бюджет AI на генерацію вичерпано. Спробуйте ${hoursUntil(retryAfter)}. Пошук при цьому працює.`);
-        } else if (res.status === 503) {
-            ui.notice('queue', 'error', 'Черга генерації тимчасово недоступна. Спробуйте за хвилину.');
-        } else if (res.status === 429) {
-            ui.notice('rate-limit', 'warning',
-                `Забагато генерацій поспіль.${retryAfter > 0 ? ` Спробуйте за ${Math.ceil(retryAfter)} с.` : ''}`);
-        } else if (res.status === 409) {
-            ui.notice('in-progress', 'warning', 'Для цієї квартири й майданчика генерація вже триває. Зачекайте на неї.');
-        } else if (res.status === 404) {
-            ui.notice('not-found', 'error', 'Квартиру знято з публікації.');
-        } else {
-            ui.notice('error', 'error', 'Не вдалося запустити генерацію.');
+            return;
+        }
+
+        // Помилки API — Problem Details (RFC 9457): розгалужуємося за машиночитним `code`, а не за статусом
+        // (503 буває і «бюджет вичерпано», і «черга недоступна») чи текстом `detail`.
+        const { code } = await res.json().catch(() => ({}));
+        const retryAfter = Number(res.headers.get('Retry-After'));
+
+        switch (code) {
+            case 'ai_budget_exhausted':
+                ui.notice('budget', 'warning',
+                    `Бюджет AI на генерацію вичерпано. Спробуйте ${hoursUntil(retryAfter)}. Пошук при цьому працює.`);
+                break;
+            case 'queue_unavailable':
+                ui.notice('queue', 'error', 'Черга генерації тимчасово недоступна. Спробуйте за хвилину.');
+                break;
+            case 'rate_limited':
+                ui.notice('rate-limit', 'warning',
+                    `Забагато генерацій поспіль.${retryAfter > 0 ? ` Спробуйте за ${Math.ceil(retryAfter)} с.` : ''}`);
+                break;
+            case 'ad_generation_in_progress':
+                ui.notice('in-progress', 'warning', 'Для цієї квартири й майданчика генерація вже триває. Зачекайте на неї.');
+                break;
+            case 'not_found':
+                ui.notice('not-found', 'error', 'Квартиру знято з публікації.');
+                break;
+            default:
+                ui.notice('error', 'error', 'Не вдалося запустити генерацію.');
         }
     }
 }

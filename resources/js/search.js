@@ -228,12 +228,17 @@ function retryAfterText(response) {
 async function renderError(response) {
     if (response === null) {
         addNotice('error', 'error', 'Сервер недоступний. Перевірте з\'єднання і спробуйте ще раз.');
-    } else if (response.status === 422) {
-        const body = await response.json().catch(() => ({}));
+        return;
+    }
+
+    // Problem Details (RFC 9457): розгалуження за `code`, див. /docs/api, схема Problem.
+    const body = await response.json().catch(() => ({}));
+
+    if (body.code === 'validation_failed') {
         addNotice('error', 'error', body.errors?.q
             ? 'Введіть запит (до 300 символів) або оберіть хоча б один фільтр.'
             : 'Перевірте фільтри: деякі значення некоректні.');
-    } else if (response.status === 429) {
+    } else if (body.code === 'rate_limited') {
         addNotice('rate-limit', 'warning', `Забагато пошуків поспіль.${retryAfterText(response)}`);
     } else {
         addNotice('error', 'error', 'Пошук тимчасово недоступний. Спробуйте трохи згодом.');

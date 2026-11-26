@@ -64,6 +64,15 @@ jobs:
       - name: PHPStan
         run: vendor/bin/phpstan analyse --memory-limit=1G --no-progress
 
+      # Закомічена специфікація (її віддає /docs/api.json) = згенерована з коду цього коміту.
+      # Змінив контролер/FormRequest/Resource і не перегенерував — червоний CI з diff-ом у лозі.
+      - name: OpenAPI is up to date
+        # Scramble бере типи атрибутів моделей зі схеми БД: без міграцій специфікація вийде іншою.
+        run: |
+          php artisan migrate --force --no-interaction
+          php artisan scramble:export
+          git diff --exit-code -- docs/openapi.json || { echo "::error::docs/openapi.json is stale: run 'make openapi' and commit"; exit 1; }
+
       - name: Pest
         run: vendor/bin/pest
 

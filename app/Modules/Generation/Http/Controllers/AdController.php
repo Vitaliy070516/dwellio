@@ -15,6 +15,8 @@ use App\Modules\Generation\Http\Requests\GenerateAdRequest;
 use App\Modules\Generation\Http\Resources\AdResource;
 use App\Modules\Generation\Models\ListingAd;
 use App\Modules\Listings\Models\Listing;
+use App\Shared\Http\Problems\ApiProblem;
+use App\Shared\Http\Problems\ErrorCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 
@@ -28,16 +30,18 @@ final class AdController extends Controller
         try {
             $requested = $action->handle($listing, $request->platform());
         } catch (AdGenerationInProgressException) {
-            abort(409, 'Ad generation for this listing and platform is already in progress.');
+            throw new ApiProblem(ErrorCode::AdGenerationInProgress, 'Ad generation for this listing and platform is already in progress.');
         } catch (AdQueueUnavailableException) {
-            abort(503, 'Ad generation is temporarily unavailable. Try again later.');
+            throw new ApiProblem(ErrorCode::QueueUnavailable, 'Ad generation is temporarily unavailable. Try again later.');
         } catch (TokenBudgetExceededException $e) {
             // 503, а не 429: вичерпано спільний бюджет сервісу, а не ліміт конкретного клієнта.
-            $message = $e->limit === BudgetLimit::MonthlySpend
-                ? 'Monthly AI budget is exhausted. Try again next month.'
-                : 'Daily AI budget is exhausted. Try again tomorrow.';
-
-            abort(503, $message, ['Retry-After' => (string) $e->retryAfterSeconds]);
+            throw new ApiProblem(
+                ErrorCode::AiBudgetExhausted,
+                $e->limit === BudgetLimit::MonthlySpend
+                    ? 'Monthly AI budget is exhausted. Try again next month.'
+                    : 'Daily AI budget is exhausted. Try again tomorrow.',
+                ['Retry-After' => (string) $e->retryAfterSeconds],
+            );
         }
 
         // 202 Accepted: роботу прийнято, результат буде пізніше (WebSocket + GET).

@@ -17,6 +17,21 @@ default:
     - composer install --no-interaction --prefer-dist --no-progress
     - cp .env.example .env && php artisan key:generate
 
+# Postgres + pgvector для job-ів, яким потрібна БД (openapi, pest). Прихований job — шаблон для `extends`.
+.pgsql:
+  services:
+    - name: pgvector/pgvector:pg17
+      alias: pgsql
+  variables:
+    POSTGRES_DB: testing
+    POSTGRES_USER: sail
+    POSTGRES_PASSWORD: password
+    DB_CONNECTION: pgsql
+    DB_HOST: pgsql
+    DB_DATABASE: testing
+    DB_USERNAME: sail
+    DB_PASSWORD: password
+
 # Без AWS-акаунта: -backend=false, жодних облікових даних у CI. Свій образ і без PHP-кешу.
 terraform:
   stage: lint
@@ -39,18 +54,17 @@ phpstan:
   stage: analyse
   script: vendor/bin/phpstan analyse --memory-limit=1G --no-progress
 
+# Закомічена специфікація = згенерована з коду (те саме, що в GitHub Actions).
+# Scramble бере типи атрибутів моделей зі схеми БД, тому потрібні Postgres і міграції.
+openapi:
+  stage: analyse
+  extends: .pgsql
+  script:
+    - php artisan migrate --force --no-interaction
+    - php artisan scramble:export
+    - git diff --exit-code -- docs/openapi.json || { echo "docs/openapi.json is stale - run 'make openapi' and commit"; exit 1; }
+
 pest:
   stage: test
-  services:
-    - name: pgvector/pgvector:pg17
-      alias: pgsql
-  variables:
-    POSTGRES_DB: testing
-    POSTGRES_USER: sail
-    POSTGRES_PASSWORD: password
-    DB_CONNECTION: pgsql
-    DB_HOST: pgsql
-    DB_DATABASE: testing
-    DB_USERNAME: sail
-    DB_PASSWORD: password
+  extends: .pgsql
   script: vendor/bin/pest

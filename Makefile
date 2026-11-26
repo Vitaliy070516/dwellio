@@ -2,7 +2,7 @@
 SAIL := ./vendor/bin/sail
 
 .DEFAULT_GOAL := help
-.PHONY: help up up-ollama up-obs up-workers up-all down test stan pint pint-check artisan shell composer check queue-setup worker worker-generation workers-restart reverb-logs build reindex ai-usage search-eval search-stats tf-fmt tf-validate
+.PHONY: help up up-ollama up-obs up-workers up-all down test stan pint pint-check artisan shell composer check queue-setup worker worker-generation workers-restart reverb-logs build reindex ai-usage search-eval search-stats openapi openapi-check tf-fmt tf-validate
 
 help: ## Список команд
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-12s\033[0m %s\n",$$1,$$2}'
@@ -37,7 +37,7 @@ pint: ## Pint (виправляє стиль)
 pint-check: ## Pint без змін файлів (для CI)
 	$(SAIL) pint --test
 
-check: pint-check stan test ## Pint → PHPStan → Pest
+check: pint-check stan openapi-check test ## Pint → PHPStan → OpenAPI → Pest
 
 queue-setup: ## RabbitMQ: failed-exchange, DLQ і прив'язки (ідемпотентно)
 	$(SAIL) artisan dwellio:rabbitmq-setup
@@ -65,6 +65,13 @@ search-eval: ## Якість пошуку на golden set; make search-eval c="-
 
 search-stats: ## Hit rate кешів пошуку за сьогодні (розбір запиту LLM і ембединг)
 	$(SAIL) artisan search:cache-stats
+
+openapi: ## Згенерувати docs/openapi.json з коду (Scramble); закомітити разом зі зміною API
+	$(SAIL) artisan scramble:export
+
+openapi-check: ## Чи збігається закомічена специфікація з кодом (те саме, що в CI)
+	$(SAIL) artisan scramble:export
+	git diff --exit-code -- docs/openapi.json
 
 # Terraform — у Docker-контейнері, без локальної установки й без AWS-акаунта (state не потрібен).
 TF := docker run --rm -u $$(id -u):$$(id -g) -e HOME=/tmp -v $(CURDIR)/terraform:/tf hashicorp/terraform:1.13

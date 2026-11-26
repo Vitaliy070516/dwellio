@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Shared\Http\Problems\ProblemRenderer;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -27,7 +29,10 @@ return Application::configure(basePath: dirname(__DIR__))
         //
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        $exceptions->shouldRenderJsonWhen(
-            fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
-        );
+        $exceptions->shouldRenderJsonWhen(ProblemRenderer::wantsProblem(...));
+
+        // Усі помилки API — Problem Details (RFC 9457) з машиночитним `code`, див. ProblemRenderer.
+        $exceptions->render(static fn (Throwable $e, Request $request): ?JsonResponse => new ProblemRenderer(
+            debug: config()->boolean('app.debug'),
+        )->render($e, $request));
     })->create();
