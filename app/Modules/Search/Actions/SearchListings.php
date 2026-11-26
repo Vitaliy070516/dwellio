@@ -10,11 +10,16 @@ use App\Modules\AI\Exceptions\EmbeddingFailedException;
 use App\Modules\AI\Exceptions\InvalidEmbeddingException;
 use App\Modules\AI\Exceptions\TokenBudgetExceededException;
 use App\Modules\Listings\Models\Listing;
+use App\Modules\Search\DTO\ListingMatch;
 use App\Modules\Search\DTO\ParsedQuery;
 use App\Modules\Search\DTO\SearchFilters;
 use App\Modules\Search\DTO\SearchResult;
+use App\Modules\Search\Enums\MatchSource;
+use App\Modules\Search\Enums\SearchCache;
 use App\Modules\Search\Enums\SearchMode;
+use App\Modules\Search\Services\SearchCacheStats;
 use App\Modules\Search\Support\ListingFilterSql;
+use App\Modules\Search\Support\QueryNormalizer;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -35,6 +40,7 @@ final readonly class SearchListings
     public function __construct(
         private ParseSearchQuery $parser,
         private EmbeddingClient $embeddings,
+        private SearchCacheStats $stats,
     ) {}
 
     public function handle(string $query, SearchFilters $explicit = new SearchFilters, ?int $limit = null): SearchResult
@@ -55,12 +61,13 @@ final readonly class SearchListings
             return new SearchResult($this->filtersOnly($parsed->filters, $limit), SearchMode::FiltersOnly, $parsed);
         }
 
-        $ids = $this->rankedIds($parsed, $vector, $tsQuery, $limit);
+        $matches = $this->ranked($parsed, $vector, $tsQuery, $limit);
 
         return new SearchResult(
-            $this->hydrate($ids),
+            $this->hydrate(array_keys($matches)),
             $vector === null ? SearchMode::TextOnly : SearchMode::Hybrid,
             $parsed,
+            $matches,
         );
     }
 
@@ -72,10 +79,11 @@ final readonly class SearchListings
      */
     private function queryVector(string $text): ?array
     {
-        $key = sprintf('search:qvec:%s:%s', $this->embeddings->model(), hash('sha256', mb_strtolower($text)));
+        $key = sprintf('search:qvec:%s:%s', $this->embeddings->model(), QueryNormalizer::hash($text));
 
         /** @var list<float>|null $cached */
         $cached = Cache::get($key);
+        $this->stats->record(SearchCache::QueryEmbedding, hit: is_array($cached));
         if (is_array($cached)) {
             return $cached;
         }
@@ -107,9 +115,9 @@ final readonly class SearchListings
 
     /**
      * @param  list<float>|null  $vector
-     * @return list<int>
+     * @return array<int, ListingMatch> id → пояснення збігу, у порядку RRF-скору
      */
-    private function rankedIds(ParsedQuery $parsed, ?array $vector, ?string $tsQuery, int $limit): array
+    private function ranked(ParsedQuery $parsed, ?array $vector, ?string $tsQuery, int $limit): array
     {
         $candidates = config()->integer('dwellio.search.candidates');
         [$where, $whereBindings] = ListingFilterSql::build($parsed->filters);
@@ -123,7 +131,7 @@ final readonly class SearchListings
 
         if ($vector !== null) {
             $literal = (new Embedding($vector, $this->embeddings->model()))->toPgVector();
-            $names[] = 'vec';
+            $names['vec'] = MatchSource::Vector;
             $ctes[] = "vec AS (
                 SELECT id, ROW_NUMBER() OVER (ORDER BY dist, id) AS rnk FROM (
                     SELECT listings.id, le.embedding <=> ?::vector AS dist
@@ -136,8 +144,8 @@ final readonly class SearchListings
         }
 
         if ($tsQuery !== null) {
-            $names[] = 'fts';
-            $names[] = 'trgm';
+            $names['fts'] = MatchSource::FullText;
+            $names['trgm'] = MatchSource::Trigram;
             $ctes[] = "fts AS (
                 SELECT id, ROW_NUMBER() OVER (ORDER BY score DESC, id) AS rnk FROM (
                     SELECT listings.id, ts_rank_cd(to_tsvector('simple', {$doc}), q.tsq) AS score
@@ -160,20 +168,53 @@ final readonly class SearchListings
             $bindings = [...$bindings, $parsed->semanticText, ...$whereBindings, $parsed->semanticText, $candidates];
         }
 
+        // Назва гілки — значення enum-а, тобто константа з коду, а не ввід користувача: інтерполяція безпечна.
         $union = implode(' UNION ALL ', array_map(
-            static fn (string $name): string => "SELECT id, rnk FROM {$name}",
+            static fn (string $cte, MatchSource $source): string => "SELECT id, rnk, '{$source->value}' AS src FROM {$cte}",
+            array_keys($names),
             $names,
         ));
 
+        // json_object_agg збирає «гілка → позиція» в тому ж проході, що й RRF: пояснення збігу без другого запиту.
         $sql = 'WITH '.implode(', ', $ctes)."
-            SELECT id, SUM(1.0 / (? + rnk)) AS score
+            SELECT id, SUM(1.0 / (? + rnk)) AS score, json_object_agg(src, rnk) AS ranks
             FROM ({$union}) ranked
             GROUP BY id
             ORDER BY score DESC, id
             LIMIT ?";
         $bindings = [...$bindings, config()->integer('dwellio.search.rrf_k'), $limit];
 
-        return $this->ids($sql, $bindings);
+        $matches = [];
+        foreach (DB::select($sql, $bindings) as $row) {
+            if (! $row instanceof stdClass || ! is_numeric($row->id ?? null)) {
+                continue;
+            }
+
+            $id = (int) $row->id;
+            $matches[$id] = new ListingMatch(
+                $id,
+                is_numeric($row->score ?? null) ? (float) $row->score : 0.0,
+                self::ranks($row->ranks ?? null),
+            );
+        }
+
+        return $matches;
+    }
+
+    /** @return array<value-of<MatchSource>, int> */
+    private static function ranks(mixed $json): array
+    {
+        $decoded = is_string($json) ? json_decode($json, true) : null;
+        $ranks = [];
+
+        foreach (MatchSource::cases() as $source) {
+            $rank = is_array($decoded) ? ($decoded[$source->value] ?? null) : null;
+            if (is_numeric($rank)) {
+                $ranks[$source->value] = (int) $rank;
+            }
+        }
+
+        return $ranks;
     }
 
     /** @return list<Listing> */

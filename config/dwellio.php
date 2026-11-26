@@ -35,6 +35,10 @@ return [
             'model' => env('AI_LLM_MODEL', 'qwen2.5:3b'),
             // Парсинг запиту стоїть на гарячому шляху пошуку: довго чекати не можна, є fallback.
             'timeout' => (int) env('AI_LLM_TIMEOUT', 10),
+            // Витягування фактів, а не творчість: 0 = відтворюваний розбір (і чесні цифри search:eval).
+            'temperature' => 0.0,
+            // JSON фільтрів ≈ 100 токенів; стеля відсікає «розговорливу» модель (FinOps).
+            'max_tokens' => 500,
         ],
 
         // Стрімінг тексту для генерації оголошень. Окремо від `llm`: у проді це інша модель
@@ -112,6 +116,10 @@ return [
         'rrf_k' => 60,
         'per_page' => 20,
         'query_embedding_ttl' => 86400,
+        // Денні лічильники hit/miss кешів розбору й ембедингу запиту (`make search-stats`).
+        'cache_stats' => true,
+        // Еталонні запити для `search:eval` (Recall@10, MRR): підбір rrf_k і candidates цифрами.
+        'golden_set' => resource_path('eval/search-golden-set.json'),
         // Кожен некешований запит = виклик LLM + ембединг. Ліміт на IP захищає бюджет від одного клієнта.
         'rate_limit' => [
             'per_minute_per_ip' => (int) env('SEARCH_RATE_PER_MINUTE', 30),

@@ -1,0 +1,156 @@
+{
+    "version": 1,
+    "description": "Еталонні запити для search:eval. Релевантність — правило (filters + групи слів: AND між групами, OR усередині), а не список id: дані синтетичні (ListingFactory), правило переживає migrate:fresh --seed. Фрази в text взято зі словника ListingFactory.",
+    "queries": [
+        {
+            "id": "quiet-pets-metro",
+            "query": "тихо, біля метро, можна з котом",
+            "relevant": {"filters": {"pets_allowed": true, "max_metro_distance_m": 500}, "text": [["тих", "спокійн"]]}
+        },
+        {
+            "id": "pets-dog",
+            "query": "шукаю квартиру, де можна жити з собакою",
+            "relevant": {"filters": {"pets_allowed": true}}
+        },
+        {
+            "id": "quiet-remote-work",
+            "query": "тиха квартира для роботи з дому",
+            "relevant": {"text": [["тих", "спокійн"]]}
+        },
+        {
+            "id": "podil-2rooms-25k",
+            "query": "двокімнатна на Подолі до 25 тисяч",
+            "relevant": {"filters": {"rooms": [2], "districts": ["podilskyi"], "price_max": 25000}}
+        },
+        {
+            "id": "obolon-1room-slang",
+            "query": "однушка на Оболоні",
+            "relevant": {"filters": {"rooms": [1], "districts": ["obolonskyi"]}}
+        },
+        {
+            "id": "new-renovation-furnished",
+            "query": "новий ремонт, з меблями",
+            "relevant": {"filters": {"furnished": true}, "text": [["євроремонт", "дизайнерськ", "свіжий"]]}
+        },
+        {
+            "id": "unfurnished",
+            "query": "без меблів, хочу обставити сам",
+            "relevant": {"filters": {"furnished": false}}
+        },
+        {
+            "id": "lively-cafes",
+            "query": "поруч кафе і магазини, жвавий район",
+            "relevant": {"text": [["жвава", "кафе", "магазин", "інфраструктур"]]}
+        },
+        {
+            "id": "ru-quiet-cat",
+            "query": "тихая квартира, можно с котом",
+            "relevant": {"filters": {"pets_allowed": true}, "text": [["тих", "спокійн"]]}
+        },
+        {
+            "id": "station-lukianivska",
+            "query": "біля метро Лук'янівська",
+            "relevant": {"text": [["лук'янівськ"]]}
+        },
+        {
+            "id": "3rooms-family",
+            "query": "трикімнатна для сім'ї з дитиною",
+            "relevant": {"filters": {"rooms": [3]}}
+        },
+        {
+            "id": "studio-cheap",
+            "query": "однокімнатна недорого, до 12000 грн",
+            "relevant": {"filters": {"rooms": [1], "price_max": 12000}}
+        },
+        {
+            "id": "pechersk-designer",
+            "query": "дизайнерський ремонт у Печерському районі",
+            "relevant": {"filters": {"districts": ["pecherskyi"]}, "text": [["дизайнерськ"]]}
+        },
+        {
+            "id": "green-yard",
+            "query": "вікна у зелений двір",
+            "relevant": {"text": [["зелен", "двір"]]}
+        },
+        {
+            "id": "metro-5min-walk",
+            "query": "5 хвилин пішки до метро",
+            "relevant": {"filters": {"max_metro_distance_m": 400}}
+        },
+        {
+            "id": "left-bank-pets",
+            "query": "з котом на лівому березі",
+            "relevant": {"filters": {"pets_allowed": true, "districts": ["dniprovskyi", "darnytskyi", "desnianskyi"]}}
+        },
+        {
+            "id": "typos-quiet-cat",
+            "query": "тиха квартра з катом",
+            "relevant": {"filters": {"pets_allowed": true}, "text": [["тих", "спокійн"]]}
+        },
+        {
+            "id": "gym-nearby",
+            "query": "щоб спортзал був поруч",
+            "relevant": {"text": [["спортзал"]]}
+        },
+        {
+            "id": "darnytsia-cosmetic",
+            "query": "косметичний ремонт, Дарницький район",
+            "relevant": {"filters": {"districts": ["darnytskyi"]}, "text": [["косметичн"]]}
+        },
+        {
+            "id": "4rooms",
+            "query": "чотирикімнатна квартира",
+            "relevant": {"filters": {"rooms": [4]}}
+        },
+        {
+            "id": "rooms-and-price-range",
+            "query": "2-3 кімнати від 20 до 35 тисяч",
+            "relevant": {"filters": {"rooms": [2, 3], "price_min": 20000, "price_max": 35000}}
+        },
+        {
+            "id": "appliances",
+            "query": "з ремонтом і всією технікою",
+            "relevant": {"filters": {"furnished": true}, "text": [["ремонт"]]}
+        },
+        {
+            "id": "sviatoshyn-pets",
+            "query": "Святошинський район, можна з тваринами",
+            "relevant": {"filters": {"districts": ["sviatoshynskyi"], "pets_allowed": true}}
+        },
+        {
+            "id": "no-road-noise",
+            "query": "щоб не було шуму від дороги",
+            "relevant": {"text": [["тих", "спокійн", "шуму"]]}
+        },
+        {
+            "id": "it-remote-silence",
+            "query": "айтішнику на віддалці потрібна тиша",
+            "relevant": {"text": [["тих", "спокійн"]]}
+        },
+        {
+            "id": "city-center",
+            "query": "квартира в центрі Києва",
+            "relevant": {"filters": {"districts": ["pecherskyi", "shevchenkivskyi"]}}
+        },
+        {
+            "id": "dog-unfurnished",
+            "query": "можна з собакою, меблі не потрібні",
+            "relevant": {"filters": {"pets_allowed": true, "furnished": false}}
+        },
+        {
+            "id": "holosiiv-15k",
+            "query": "Голосіївський до 15 тисяч",
+            "relevant": {"filters": {"districts": ["holosiivskyi"], "price_max": 15000}}
+        },
+        {
+            "id": "plain-condition",
+            "query": "житловий стан, без зайвого декору",
+            "relevant": {"text": [["житловий стан"]]}
+        },
+        {
+            "id": "en-pet-friendly-metro",
+            "query": "pet-friendly flat near the metro",
+            "relevant": {"filters": {"pets_allowed": true, "max_metro_distance_m": 500}}
+        }
+    ]
+}

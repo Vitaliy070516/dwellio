@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\AI;
 
+use App\Modules\AI\Contracts\AiPricing;
 use App\Modules\AI\Contracts\EmbeddingClient;
 use App\Modules\AI\Contracts\StructuredOutputClient;
 use App\Modules\AI\Contracts\TextStreamClient;
@@ -35,6 +36,8 @@ final class AIServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        // Ціни читаються з того самого singleton-а, що й бюджет: одне джерело правди про «платно / безкоштовно».
+        $this->app->singleton(AiPricing::class, fn (): AiPricing => $this->app->make(TokenBudget::class));
         $this->app->singleton(TokenBudget::class, static function (): TokenBudget {
             $store = config('dwellio.ai.budget.store');
 
@@ -107,6 +110,8 @@ final class AIServiceProvider extends ServiceProvider
                     provider: config()->string('dwellio.ai.llm.provider'),
                     model: config()->string('dwellio.ai.llm.model'),
                     timeout: config()->integer('dwellio.ai.llm.timeout'),
+                    temperature: config()->float('dwellio.ai.llm.temperature'),
+                    maxTokens: config()->integer('dwellio.ai.llm.max_tokens'),
                 ),
                 default => throw new InvalidArgumentException(
                     sprintf('Unknown AI LLM driver "%s". Use "laravel-ai" or "fake".', $driver),

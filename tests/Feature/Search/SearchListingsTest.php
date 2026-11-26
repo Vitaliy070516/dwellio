@@ -10,6 +10,7 @@ use App\Modules\Listings\Enums\ListingStatus;
 use App\Modules\Listings\Models\Listing;
 use App\Modules\Search\Actions\SearchListings;
 use App\Modules\Search\DTO\SearchFilters;
+use App\Modules\Search\Enums\MatchSource;
 use App\Modules\Search\Enums\SearchMode;
 use Illuminate\Support\Facades\DB;
 
@@ -183,4 +184,44 @@ it('caches the query embedding so a repeated search does not pay twice', functio
     searchIds('тиха квартира');
 
     expect(count(fakeEmbeddingClient()->embeddedTexts()) - $before)->toBe(1);
+});
+
+it('explains which branches matched each listing and at what rank', function (): void {
+    $target = indexed(['title' => 'Alpha', 'description' => 'Перша квартира']);
+
+    // Точний збіг вектора (rank 1 у vector) + слово «квартира» в FTS.
+    fakeLlm()->respondWith(['semantic_query' => $target->embeddingSource()]);
+    $result = app(SearchListings::class)->handle('будь-що');
+
+    $match = $result->matchFor($result->listings[0]);
+
+    expect($match)->not->toBeNull()
+        ->and($match?->ranks['vector'] ?? null)->toBe(1)
+        ->and($match?->matchedBy())->toContain(MatchSource::Vector)
+        ->and($match?->score)->toBeGreaterThan(0.0)
+        // Ключі matches — рівно ті квартири, що у видачі, у тому ж порядку.
+        ->and(array_keys($result->matches))->toBe(array_map(static fn (Listing $l): int => $l->id, $result->listings));
+});
+
+it('never attributes a match to the vector branch in text-only mode', function (): void {
+    indexed(['title' => 'Квартира з балконом', 'description' => 'Дозволено проживання з котом']);
+
+    fakeLlm()->respondWith(['semantic_query' => 'котом']);
+    fakeEmbeddingClient()->failNextWith(new EmbeddingFailedException('down'));
+
+    $result = app(SearchListings::class)->handle('з котом');
+    $match = $result->matchFor($result->listings[0]);
+
+    expect($result->mode)->toBe(SearchMode::TextOnly)
+        ->and($match?->matchedBy())->not->toContain(MatchSource::Vector)
+        ->and($match?->ranks)->toHaveKey('fts');
+});
+
+it('has no match explanation in filters-only mode', function (): void {
+    indexed(['rooms' => 2]);
+
+    $result = app(SearchListings::class)->handle('', new SearchFilters(rooms: [2]));
+
+    expect($result->matches)->toBe([])
+        ->and($result->matchFor($result->listings[0]))->toBeNull();
 });

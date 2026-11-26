@@ -147,3 +147,12 @@ it('checks the per-purpose token limit before the money caps', function (): void
     expect(fn () => $budget->ensureAvailable(AiPurpose::Generation))
         ->toThrow(TokenBudgetExceededException::class, 'token budget');
 });
+
+it('reports which purposes cost money', function (): void {
+    $budget = spendBudget();
+
+    // Ціни немає (Ollama / Fake) → безкоштовно; ціна є → платно.
+    expect($budget->isPaid(AiPurpose::Generation))->toBeTrue()
+        ->and($budget->isPaid(AiPurpose::QueryParsing))->toBeTrue()
+        ->and($budget->isPaid(AiPurpose::Embeddings))->toBeFalse();
+});

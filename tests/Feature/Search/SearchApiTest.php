@@ -17,7 +17,22 @@ it('returns listings with search meta', function (): void {
         ->assertJsonPath('meta.mode', 'hybrid')
         ->assertJsonPath('meta.parsed_by_llm', true)
         ->assertJsonPath('data.0.id', $listing->id)
-        ->assertJsonStructure(['data' => [['id', 'title', 'price_uah']], 'meta' => ['mode', 'filters', 'semantic_query', 'count']]);
+        ->assertJsonPath('data.0.match.ranks.vector', fn (mixed $rank): bool => is_int($rank))
+        ->assertJsonStructure([
+            'data' => [['id', 'title', 'price_uah', 'match' => ['matched_by', 'ranks', 'score']]],
+            'meta' => ['mode', 'filters', 'semantic_query', 'count'],
+        ]);
+});
+
+it('lists the matching branches in a stable order', function (): void {
+    $listing = Listing::factory()->create(['status' => ListingStatus::Active, 'title' => 'Тиха', 'description' => 'квартира з котом']);
+    app(EmbedListing::class)->handle($listing);
+    fakeLlm()->respondWith(['semantic_query' => 'квартира котом']);
+
+    $matchedBy = $this->getJson('/api/search?q='.urlencode('квартира з котом'))->assertOk()->json('data.0.match.matched_by');
+
+    // vector завжди знаходить «найближчого»; FTS — за словом «квартира»; порядок — як у MatchSource.
+    expect($matchedBy)->toBe(['vector', 'fts', 'trigram']);
 });
 
 it('reports degraded mode to the client', function (): void {
@@ -26,6 +41,7 @@ it('reports degraded mode to the client', function (): void {
     $this->getJson('/api/search?rooms[]=2')
         ->assertOk()
         ->assertJsonPath('meta.mode', 'filters_only')
+        ->assertJsonPath('data.0.match', null)
         ->assertJsonCount(1, 'data');
 });
 

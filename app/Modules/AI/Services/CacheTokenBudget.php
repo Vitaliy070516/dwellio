@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\AI\Services;
 
+use App\Modules\AI\Contracts\AiPricing;
 use App\Modules\AI\Contracts\TokenBudget;
 use App\Modules\AI\DTO\ModelPrice;
 use App\Modules\AI\DTO\SpendUsage;
@@ -26,7 +27,7 @@ use Illuminate\Contracts\Cache\Repository;
  * на будь-якому драйверу, тож тести не потребують живого Redis. Гроші — цілі мікродолари:
  * INCRBYFLOAT накопичує похибку, а INCRBY — ні.
  */
-final readonly class CacheTokenBudget implements TokenBudget
+final readonly class CacheTokenBudget implements AiPricing, TokenBudget
 {
     /** Ключі живуть довше доби, щоб `ai:usage --date=вчора` ще бачив учорашні цифри. */
     private const int KEY_TTL_SECONDS = 3 * 86400;
@@ -138,6 +139,11 @@ final readonly class CacheTokenBudget implements TokenBudget
             monthlyMicroUsd: $monthly,
             monthlyCapMicroUsd: $this->monthlySpendCapMicroUsd,
         );
+    }
+
+    public function isPaid(AiPurpose $purpose): bool
+    {
+        return ! $this->price($purpose)->isFree();
     }
 
     private function price(AiPurpose $purpose): ModelPrice

@@ -119,3 +119,26 @@ it('skips the LLM entirely for a blank query', function (): void {
     expect($parsed->semanticText)->toBe('')
         ->and(fakeLlm()->prompts())->toBe([]);
 });
+
+it('drops filters the LLM invented and caches the cleaned result', function (): void {
+    // Реальна галюцинація qwen2.5:3b: район і кімнати, яких у запиті немає.
+    fakeLlm()->respondWith(['rooms' => [2], 'districts' => ['shevchenkivskyi'], 'semantic_query' => 'зелений двір']);
+
+    $first = parse('вікна у зелений двір');
+    $cached = parse('вікна у зелений двір');
+
+    expect($first->filters->isEmpty())->toBeTrue()
+        ->and($first->semanticText)->toBe('зелений двір')
+        ->and($cached->filters->isEmpty())->toBeTrue()
+        ->and(fakeLlm()->prompts())->toHaveCount(1);
+});
+
+it('fixes a price bound pointing the wrong way', function (): void {
+    fakeLlm()->respondWith(['price_min' => 15000, 'price_max' => 15000, 'districts' => ['holosiivskyi']]);
+
+    $parsed = parse('Голосіївський до 15 тисяч');
+
+    expect($parsed->filters->priceMin)->toBeNull()
+        ->and($parsed->filters->priceMax)->toBe(15000)
+        ->and($parsed->filters->districts)->toBe([District::Holosiivskyi]);
+});

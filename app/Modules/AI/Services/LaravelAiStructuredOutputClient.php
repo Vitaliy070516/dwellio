@@ -10,8 +10,6 @@ use App\Modules\AI\Exceptions\StructuredOutputFailedException;
 use Closure;
 use Throwable;
 
-use function Laravel\Ai\agent;
-
 /** Адаптер над laravel/ai: ad-hoc агент зі схемою. Провайдер і модель приходять із конфігу. */
 final readonly class LaravelAiStructuredOutputClient implements StructuredOutputClient
 {
@@ -19,12 +17,14 @@ final readonly class LaravelAiStructuredOutputClient implements StructuredOutput
         private string $provider,
         private string $model,
         private int $timeout = 30,
+        private float $temperature = 0.0,
+        private int $maxTokens = 500,
     ) {}
 
     public function generate(string $instructions, string $prompt, Closure $schema): StructuredOutput
     {
         try {
-            $response = agent(instructions: $instructions, schema: $schema)
+            $response = (new StructuredOutputAgent($instructions, $schema, $this->temperature, $this->maxTokens))
                 ->prompt($prompt, provider: $this->provider, model: $this->model, timeout: $this->timeout);
         } catch (Throwable $e) {
             throw new StructuredOutputFailedException(

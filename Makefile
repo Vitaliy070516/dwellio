@@ -2,7 +2,7 @@
 SAIL := ./vendor/bin/sail
 
 .DEFAULT_GOAL := help
-.PHONY: help up up-ollama up-obs up-workers up-all down test stan pint pint-check artisan shell composer check queue-setup worker worker-generation workers-restart reverb-logs build reindex ai-usage tf-fmt tf-validate
+.PHONY: help up up-ollama up-obs up-workers up-all down test stan pint pint-check artisan shell composer check queue-setup worker worker-generation workers-restart reverb-logs build reindex ai-usage search-eval search-stats tf-fmt tf-validate
 
 help: ## Список команд
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-12s\033[0m %s\n",$$1,$$2}'
@@ -59,6 +59,12 @@ reverb-logs: ## Логи Reverb
 
 ai-usage: ## Денне споживання токенів проти бюджетів (лічильники в Redis)
 	$(SAIL) artisan ai:usage
+
+search-eval: ## Якість пошуку на golden set; make search-eval c="--rrf-k=10,30,60 --candidates=20,50,100 --details"
+	$(SAIL) artisan search:eval $(c)
+
+search-stats: ## Hit rate кешів пошуку за сьогодні (розбір запиту LLM і ембединг)
+	$(SAIL) artisan search:cache-stats
 
 # Terraform — у Docker-контейнері, без локальної установки й без AWS-акаунта (state не потрібен).
 TF := docker run --rm -u $$(id -u):$$(id -g) -e HOME=/tmp -v $(CURDIR)/terraform:/tf hashicorp/terraform:1.13
