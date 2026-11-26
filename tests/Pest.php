@@ -4,14 +4,21 @@ declare(strict_types=1);
 
 use App\Modules\AI\Contracts\EmbeddingClient;
 use App\Modules\AI\Contracts\StructuredOutputClient;
+use App\Modules\AI\Contracts\TextStreamClient;
 use App\Modules\AI\Services\FakeEmbeddingClient;
 use App\Modules\AI\Services\FakeStructuredOutputClient;
+use App\Modules\AI\Services\FakeTextStreamClient;
+use App\Modules\Generation\Enums\AdStatus;
+use App\Modules\Generation\Enums\Platform;
+use App\Modules\Generation\Models\ListingAd;
+use App\Modules\Generation\Prompts\AdPrompt;
+use App\Modules\Listings\Models\Listing;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 pest()->extend(TestCase::class)->in('Feature');
 // TestCase уже прив'язано до всього Feature; тут лише додаємо трейт (повторний extend Pest забороняє).
-pest()->use(RefreshDatabase::class)->in('Feature/Database', 'Feature/Listings', 'Feature/Search');
+pest()->use(RefreshDatabase::class)->in('Feature/Database', 'Feature/Listings', 'Feature/Search', 'Feature/Generation');
 pest()->extend(TestCase::class)->in('Architecture');
 
 /*
@@ -62,4 +69,38 @@ function fakeLlm(): FakeStructuredOutputClient
     assert($client instanceof FakeStructuredOutputClient);
 
     return $client;
+}
+
+function fakeTextStream(): FakeTextStreamClient
+{
+    $client = app(TextStreamClient::class);
+    assert($client instanceof FakeTextStreamClient);
+
+    return $client;
+}
+
+/**
+ * Запис генерації напряму в БД (без Job). Токен доступу за замовчуванням — `test-token`.
+ *
+ * @param  array<string, mixed>  $overrides
+ */
+function createAd(?Listing $listing = null, array $overrides = [], string $token = 'test-token'): ListingAd
+{
+    $listing ??= Listing::factory()->active()->create();
+
+    return ListingAd::query()->create(array_merge([
+        'listing_id' => $listing->id,
+        'platform' => Platform::Olx,
+        'status' => AdStatus::Queued,
+        'prompt_version' => AdPrompt::VERSION,
+        'access_token_hash' => ListingAd::hashToken($token),
+    ], $overrides));
+}
+
+/** Валідна відповідь моделі: заголовок, порожній рядок, текст довший за мінімум майданчика. */
+function validAdText(string $title = 'Світла двокімнатна біля метро на Подолі'): string
+{
+    return $title."\n\n"
+        .'Простора квартира з меблями у тихому дворі. До метро кілька хвилин пішки, поруч парк і магазини. '
+        .'Можна з домашніми тваринами. Чудовий варіант для пари або невеликої родини.';
 }

@@ -44,6 +44,11 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        // Доступ до однієї генерації оголошення за токеном (App\Modules\Generation\GenerationServiceProvider).
+        'ad-token' => [
+            'driver' => 'ad-token',
+        ],
     ],
 
     /*

@@ -60,7 +60,8 @@ flowchart TB
    WGEN -->|stream| ANTH
    WEMB --> EMB
    WGEN & WEMB -.dev.-> OLLAMA
-   WGEN -->|broadcast chunks/status| REDIS --> REVERB
+   WGEN -->|HTTP API: chunks/status| REVERB
+   REVERB <-->|pub/sub між інстансами| REDIS
    WEMB -->|upsert vectors| PG
    API -->|query → filters, Structured Output| ANTH
    PG -->|cron pg_dump| S3
@@ -149,6 +150,29 @@ dwellio/
 **День 6 — генерація і real-time**
 - `GenerateListingAd` job → стрімінг → broadcast у приватний канал Reverb (чанки батчами по ~100 мс).
 - Мінімальна сторінка з Echo.
+
+*Як реалізовано (2026-11-26):*
+- Потік: `POST /api/listings/{id}/ads` → запис `listing_ads` (queued) + Job у черзі `generation` → `202` з одноразовим токеном. Браузер підписується на `private-listing-ads.{uuid}` (guard `ad-token`, `POST /api/broadcasting/auth`), отримує `ad.started` / `ad.chunk` (`attempt`, `seq`) / `ad.completed` / `ad.failed`, фінальний текст бере `GET /api/listing-ads/{uuid}`. Джерело істини — БД, WebSocket нічого не гарантує.
+- Воркер публікує події в Reverb через HTTP API (Pusher-протокол); Reverb одразу запущено зі scaling через Redis pub/sub, тож на тижні 4 досить збільшити `replicas`.
+- Кожен процес — окремий контейнер: `reverb`, `worker-embeddings`, `worker-generation` (профіль `workers`).
+- Ланцюжок таймаутів (має строго зростати, інакше деплой обриває стрім і RabbitMQ доставляє Job повторно = повторна оплата токенів):
+
+| Ланка | Значення |
+|---|---|
+| LLM (`AI_GENERATION_TIMEOUT`, він же Guzzle `read_timeout` для стрімів) | 180 с |
+| `GenerateListingAdJob::$timeout` (`failOnTimeout = true`) | 240 с |
+| `queue:work --timeout` | 270 с |
+| `stop_grace_period` у Compose / `terminationGracePeriodSeconds` у k8s | 300 с |
+| TTL lock `WithoutOverlapping` | 300 с |
+
+- AMQP heartbeat вимкнений навмисно: PHP-воркер синхронно читає стрім і не встигав би відповідати на heartbeat. `consumer_timeout` RabbitMQ (30 хв) > життя Job (15 хв).
+
+*Known issues Дня 6:*
+- Ліміти OLX / rieltor.ua у `Platform` не звірені з правилами майданчиків.
+- `qwen2.5:3b` погано тримає формат і може вигадувати факти; у UI є попередження «перевірте факти».
+- У повідомленнях scaling-каналу Redis Reverb передає серіалізований `Application` **разом із secret** → Redis у проді лише в приватній мережі й із паролем.
+- CRUD квартир і запуск генерації без автентифікації (є лише throttle 5/хв на IP і 200/день глобально).
+- Exactly-once немає: падіння воркера між відповіддю LLM і записом у БД = повторна оплата.
 
 **День 7 — безпека і документація**
 - Rate limiting і облік токенів у Redis, README з діаграмою, ADR-001…004.

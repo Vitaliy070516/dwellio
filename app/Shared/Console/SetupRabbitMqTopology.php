@@ -16,7 +16,7 @@ use Illuminate\Console\Command;
 final class SetupRabbitMqTopology extends Command
 {
     /** Черги, для яких потрібна DLQ. Нова черга (напр. generation) = новий рядок тут. */
-    private const array QUEUES = ['embeddings'];
+    private const array QUEUES = ['embeddings', 'generation'];
 
     protected $signature = 'dwellio:rabbitmq-setup {connection=rabbitmq : Назва queue-підключення}';
 

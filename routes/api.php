@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Modules\Generation\Http\Controllers\AdController;
 use App\Modules\Listings\Http\Controllers\ListingController;
 use App\Modules\Search\Http\Controllers\SearchController;
 use Illuminate\Support\Facades\Route;
@@ -12,3 +13,9 @@ Route::put('listings/{listing}', [ListingController::class, 'update'])->name('li
 
 // GET: пошук ідемпотентний і кешований. Rate limit (токени LLM) додається на Дні 7.
 Route::get('search', SearchController::class)->name('search');
+
+// Генерація оголошень: POST ставить Job у чергу (202), прогрес іде у WebSocket, результат — через GET.
+Route::post('listings/{listing}/ads', [AdController::class, 'store'])
+    ->middleware('throttle:ad-generation')
+    ->name('listing-ads.store');
+Route::get('listing-ads/{ad}', [AdController::class, 'show'])->name('listing-ads.show');
