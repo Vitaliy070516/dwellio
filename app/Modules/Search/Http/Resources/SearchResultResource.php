@@ -38,6 +38,12 @@ final class SearchResultResource extends JsonResource
                 'parsed_by_llm' => $this->query->parsedByLlm,
                 'filters' => $this->query->filters->toArray(),
                 'semantic_query' => $this->query->semanticText,
+                // Чому AI-крок не відпрацював (null = відпрацював або не був потрібен). Окремо від `mode`:
+                // `text_only` через бюджет і через падіння провайдера клієнт показує по-різному.
+                'degraded' => [
+                    'query_parsing' => $this->query->failure?->value,
+                    'embeddings' => $this->embeddingFailure?->value,
+                ],
                 'count' => count($this->listings),
             ],
         ];

@@ -14,6 +14,7 @@ use App\Modules\Search\DTO\ListingMatch;
 use App\Modules\Search\DTO\ParsedQuery;
 use App\Modules\Search\DTO\SearchFilters;
 use App\Modules\Search\DTO\SearchResult;
+use App\Modules\Search\Enums\DegradationReason;
 use App\Modules\Search\Enums\MatchSource;
 use App\Modules\Search\Enums\SearchCache;
 use App\Modules\Search\Enums\SearchMode;
@@ -48,17 +49,20 @@ final readonly class SearchListings
         $limit = max(1, min($limit ?? config()->integer('dwellio.search.per_page'), 50));
 
         $parsed = $this->parser->handle($query);
-        $parsed = new ParsedQuery(
-            $parsed->filters->overriddenBy($explicit),
-            $parsed->semanticText,
-            $parsed->parsedByLlm,
-        );
+        $parsed = $parsed->withFilters($parsed->filters->overriddenBy($explicit));
 
-        $vector = $parsed->semanticText === '' ? null : $this->queryVector($parsed->semanticText);
+        $vectorOrFailure = $parsed->semanticText === '' ? null : $this->queryVector($parsed->semanticText);
+        $vector = is_array($vectorOrFailure) ? $vectorOrFailure : null;
+        $embeddingFailure = $vectorOrFailure instanceof DegradationReason ? $vectorOrFailure : null;
         $tsQuery = self::tsQuery($parsed->semanticText);
 
         if ($parsed->semanticText === '' || ($vector === null && $tsQuery === null)) {
-            return new SearchResult($this->filtersOnly($parsed->filters, $limit), SearchMode::FiltersOnly, $parsed);
+            return new SearchResult(
+                $this->filtersOnly($parsed->filters, $limit),
+                SearchMode::FiltersOnly,
+                $parsed,
+                embeddingFailure: $embeddingFailure,
+            );
         }
 
         $matches = $this->ranked($parsed, $vector, $tsQuery, $limit);
@@ -68,6 +72,7 @@ final readonly class SearchListings
             $vector === null ? SearchMode::TextOnly : SearchMode::Hybrid,
             $parsed,
             $matches,
+            $embeddingFailure,
         );
     }
 
@@ -75,9 +80,9 @@ final readonly class SearchListings
      * Вектор запиту. Кешуємо в Redis (FinOps: повторні запити не платять за токени),
      * ключ містить модель, бо вектори різних моделей непорівнянні.
      *
-     * @return list<float>|null null = провайдер недоступний, пошук деградує до тексту
+     * @return list<float>|DegradationReason причина замість вектора = пошук деградує до тексту
      */
-    private function queryVector(string $text): ?array
+    private function queryVector(string $text): array|DegradationReason
     {
         $key = sprintf('search:qvec:%s:%s', $this->embeddings->model(), QueryNormalizer::hash($text));
 
@@ -93,7 +98,11 @@ final readonly class SearchListings
         } catch (EmbeddingFailedException|InvalidEmbeddingException|TokenBudgetExceededException $e) {
             Log::warning('Query embedding failed, falling back to text-only search.', ['error' => $e->getMessage()]);
 
-            return null;
+            return match (true) {
+                $e instanceof TokenBudgetExceededException => DegradationReason::BudgetExceeded,
+                $e instanceof InvalidEmbeddingException => DegradationReason::InvalidOutput,
+                default => DegradationReason::ProviderUnavailable,
+            };
         }
 
         Cache::put($key, $embedding->vector, config()->integer('dwellio.search.query_embedding_ttl'));

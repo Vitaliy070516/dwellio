@@ -10,6 +10,7 @@ use App\Modules\AI\Exceptions\TokenBudgetExceededException;
 use App\Modules\Listings\Enums\District;
 use App\Modules\Search\DTO\ParsedQuery;
 use App\Modules\Search\DTO\SearchFilters;
+use App\Modules\Search\Enums\DegradationReason;
 use App\Modules\Search\Enums\SearchCache;
 use App\Modules\Search\Services\SearchCacheStats;
 use App\Modules\Search\Support\FilterGrounding;
@@ -66,9 +67,12 @@ final readonly class ParseSearchQuery
             $raw = $this->llm->generate(self::instructions(), $query, static fn (JsonSchema $schema): array => self::schema($schema))->data;
         } catch (StructuredOutputFailedException|TokenBudgetExceededException $e) {
             // Вичерпаний бюджет — та сама деградація, що й падіння провайдера: пошук працює без LLM.
+            // Різниця лише в причині, яку бачить клієнт.
             Log::warning('Search query parsing failed, falling back to plain text search.', ['error' => $e->getMessage()]);
 
-            return $this->fallback($query);
+            return $this->fallback($query, $e instanceof TokenBudgetExceededException
+                ? DegradationReason::BudgetExceeded
+                : DegradationReason::ProviderUnavailable);
         }
 
         $validator = Validator::make($raw, [
@@ -87,7 +91,7 @@ final readonly class ParseSearchQuery
         if ($validator->fails()) {
             Log::warning('LLM returned search filters that fail validation.', ['errors' => $validator->errors()->keys()]);
 
-            return $this->fallback($query);
+            return $this->fallback($query, DegradationReason::InvalidOutput);
         }
 
         /** @var array<string, mixed> $valid */
@@ -148,9 +152,9 @@ final readonly class ParseSearchQuery
         return new ParsedQuery($filters, $semantic, parsedByLlm: true);
     }
 
-    private function fallback(string $query): ParsedQuery
+    private function fallback(string $query, DegradationReason $reason): ParsedQuery
     {
-        return new ParsedQuery(new SearchFilters, $query, parsedByLlm: false);
+        return new ParsedQuery(new SearchFilters, $query, parsedByLlm: false, failure: $reason);
     }
 
     private static function intOrNull(mixed $value): ?int

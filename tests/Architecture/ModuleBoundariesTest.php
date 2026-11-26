@@ -43,3 +43,15 @@ arch('Modules use strict types')
 arch('No debug functions left in code')
     ->expect(['dd', 'dump', 'ray', 'var_dump'])
     ->not->toBeUsed();
+
+/*
+ * App\Web — шар демо-фронту: компонує модулі (картка квартири + кнопки генерації), тож може залежати від усіх.
+ * Зворотна залежність заборонена: модулі не знають, хто їх показує.
+ */
+arch('No module depends on the web layer')
+    ->expect('App\Modules')
+    ->not->toUse('App\Web');
+
+arch('Web layer is thin: no DB facade, no AI services, no actions with side effects')
+    ->expect('App\Web')
+    ->not->toUse(['Illuminate\Support\Facades\DB', 'App\Modules\AI', 'App\Modules\Generation\Actions', 'App\Modules\Listings\Actions']);
