@@ -115,7 +115,7 @@ dwellio/
 │   └── overlays/{local,prod}/   # kustomize
 ├── .github/workflows/{ci.yml,mirror-gitlab.yml}
 ├── .gitlab-ci.yml
-├── docs/{architecture.md,adr/,openapi.yaml}
+├── docs/{architecture.md,adr/,openapi.json}
 ├── phpstan.neon  Makefile  README.md
 ```
  
@@ -264,7 +264,7 @@ dwellio/
 
 *Known issues Дня 10:*
 - **JS без тестів.** Pest перевіряє контракт сторінок і `meta.degraded`, а логіку станів (`seq`, перепідключення, гонка відповідей) — ні. Кандидат: Pest Browser plugin (Playwright) на Дні 13 або на тижні 5. У цій сесії сторінки не відкривали в браузері (розширення недоступне), перевірено `curl` + Vite build.
-- **Розрізнення помилок генерації за `Retry-After`** — тимчасовий хак: машиночитний `code` з'явиться в єдиному форматі помилок на Дні 11.
+- ~~**Розрізнення помилок генерації за `Retry-After`** — тимчасовий хак.~~ Закрито на Дні 11: фронт розгалужується за `code`.
 - **Перезавантаження сторінки губить генерацію:** токен доступу живе лише в пам'яті JS. Можна покласти `{ad_id, token}` у `sessionStorage` (токен відкриває лише одну генерацію), але це ще одне місце для токена → вирішимо разом із `DEMO_MODE`.
 - **Холодний старт Ollama тримає `GET /api/search` до ~2 хв** (php-fpm воркер зайнятий весь час). Для локалки прийнятно; для демо через тунель (День 12) треба менший таймаут розбору запиту і прогрів моделі при старті.
 - `listing.js` важить ~100 кБ (28 кБ gzip) через `pusher-js`; сторінка пошуку Echo не вантажить.
@@ -272,6 +272,22 @@ dwellio/
 **День 11 — OpenAPI / Swagger UI**
 - Генерація специфікації з коду (FormRequest/Resource) + Swagger UI на `/docs/api`.
 - Єдиний формат помилок; CI-перевірка, що закомічена специфікація збігається зі згенерованою.
+
+*Як реалізовано (2026-11-26):*
+- **Генератор — Scramble** (`dedoc/scramble`): виводить схему з FormRequest-правил, Resource-ів, enum-ів і `throw`/`abort` у контролерах без анотацій-дублікатів (на відміну від `l5-swagger`/swagger-php, де атрибути треба тримати в синхроні з кодом вручну). Де виведення не вистачає — точкові PHPDoc: `@status 201` на `store`, `@var list<SearchHitResource>` на `data` пошуку. Форма елемента видачі тепер окремий `SearchHitResource` (поля квартири + `match`).
+- **Єдиний формат помилок — Problem Details (RFC 9457)**, `application/problem+json`: `{type, title, status, detail, code}` + `errors` для 422 (форма Laravel, тож `assertJsonValidationErrors` і фронт працюють без змін). `code` — машиночитний ключ з каталогу `Shared\Http\Problems\ErrorCode` (enum у специфікації): клієнт розгалужується за ним, бо один 503 означає і `ai_budget_exhausted`, і `queue_unavailable`. `type` — URN `urn:dwellio:problem:{code}` (не залежить від хоста). Заголовки винятку (`Retry-After`, `X-RateLimit-*`) зберігаються.
+- **Хто що знає:** доменні винятки модулів про HTTP не знають (їх ловлять і Job-и); контролер перекладає їх у `ApiProblem(ErrorCode, detail)`, статус виводиться з коду. `ProblemRenderer` (виклик з `bootstrap/app.php`) рендерить усе інше: валідацію, 404/405/429 фреймворку, 500. Текст непередбаченого винятку назовні лише при `APP_DEBUG`; назва моделі з `ModelNotFoundException` не витікає. Веб-сторінки демо лишаються HTML. Architecture tests: доменні винятки не наслідують `HttpException`, `ApiProblem` живе лише в HTTP-шарі.
+- **Специфікація відповідає рендереру:** `ProblemResponseExtension` перекриває вбудовані відповіді Scramble (`{message}`) на `Problem` / `ValidationProblem`, для `ApiProblem` підставляє `code: const` і приклад `detail` саме цього ендпоінту, для `rate_limited` / `ai_budget_exhausted` — заголовок `Retry-After`. `DescribeApi` задає відносний `servers: [/api]` і схеми Problem. `broadcasting/auth` (маршрут фреймворку) зі специфікації виключено, потік токена описано в `info.description`.
+- **`/docs/api` — Swagger UI, `/docs/api.json` — закомічений `docs/openapi.json`.** Маршрути Scramble вимкнено: UI не генерує специфікацію на кожен запит (розбір коду — секунди CPU і десятки МБ php-fpm), а показує саме той файл, що пройшов CI. Swagger UI зібрано Vite-ом із npm (`swagger-ui-dist`), а не з CDN: версія в lock-файлі, без стороннього JS.
+- **CI (GitHub і GitLab):** `migrate` → `scramble:export` → `git diff --exit-code docs/openapi.json`. Міграції потрібні, бо Scramble бере типи атрибутів моделей зі схеми БД. Перевірено, що файл однаковий при іншому `APP_URL` і іншій (мігрованій) БД. Локально: `make openapi` (згенерувати) і `make openapi-check`; `make check` включає перевірку.
+
+*Known issues Дня 11:*
+- **Swagger UI не відкривали в браузері** (розширення недоступне, як і на Дні 10): перевірено `curl` (сторінка, спецфайл, усі формати помилок) і Vite build. JS-гілки за `code` у `search.js` / `ad-generation.js` теж без тестів.
+- **Специфікація залежить від БД:** забули міграції в CI — файл вийде іншим і перевірка впаде з незрозумілим diff-ом. Альтернатива — `@property` на моделях замість читання схеми; поки достатньо кроку `migrate`.
+- **Кирилиця в `openapi.json` екранується (`\u0413…`):** `scramble:export` пише без `JSON_UNESCAPED_UNICODE`, тож diff описів у PR нечитабельний. Варіант — власна команда експорту або англійські описи для публічного API (тиждень 5).
+- **503 з двома кодами зливаються в один `anyOf`:** `Retry-After` там позначено не обов'язковим, бо `queue_unavailable` його не має; точність — у тексті опису.
+- `ErrorCode` у Shared — єдиний каталог на весь API: новий модульний код = правка Shared. Для моноліту з 3 модулями це простіше, ніж реєстр кодів по модулях.
+- Swagger UI важить ~1,6 МБ (450 кБ gzip), вантажиться лише на `/docs/api`. «Try it out» на CRUD працює проти справжньої БД — на демо його закриє `DEMO_MODE` (День 12).
 
 **День 12 — демо-доступ через тунель**
 - Cloudflare Tunnel у Compose-профілі `demo`; Reverb (wss) через той самий хост.
