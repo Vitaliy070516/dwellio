@@ -7,11 +7,12 @@
 
 | ADR | Тема | Статус |
 |---|---|---|
-| 001 | Модульний моноліт | Заплановано (День 7) |
-| 002 | RabbitMQ для AI-задач | Заплановано (День 7) |
-| 003 | pgvector + hybrid search (RRF) | Заплановано (День 7) |
+| [001](001-modular-monolith.md) | Модульний моноліт | Прийнято |
+| [002](002-rabbitmq-for-ai-jobs.md) | RabbitMQ для AI-задач | Прийнято |
+| [003](003-pgvector-hybrid-search.md) | pgvector + hybrid search (RRF) | Прийнято |
 | [004](004-ai-sdk-choice.md) | Laravel AI SDK замість Prism | Прийнято |
-| 005 | Reverb і стрімінг із воркера | Заплановано (День 7) |
+| [005](005-reverb-streaming-from-worker.md) | Reverb і стрімінг із воркера | Прийнято |
+| 006 | `t3.micro` + swap проти `t3.small` на кредитах | Заплановано (тиждень 3) |
 
 ## Шаблон
 

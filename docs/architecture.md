@@ -178,6 +178,18 @@ dwellio/
 - Rate limiting і облік токенів у Redis, README з діаграмою, ADR-001…004.
 - AWS цього тижня — лише підготовка: каркас Terraform (`terraform validate` без акаунта) і чеклист старту на тиждень 3–4.
 
+*Як реалізовано (2026-11-26):*
+- **Бюджет токенів:** контракт `AI\Contracts\TokenBudget` + `CacheTokenBudget` (Redis, атомарний `INCRBY`, ключі `ai:tokens:{Y-m-d UTC}:{purpose}:{input|output|calls}`, TTL 3 доби). Окремі денні ліміти на `embeddings` / `query_parsing` / `generation` (`AI_BUDGET_*_DAILY`). Кожен AI-контракт резолвиться в `Budgeted*Client`-декоратор над адаптером або Fake: перевірка ДО виклику, облік ПІСЛЯ. `StructuredOutputClient` тепер повертає DTO `StructuredOutput` з токенами.
+- **Поведінка при вичерпанні:** пошук — fallback без LLM / без вектора; `POST /ads` — `503` + `Retry-After` до півночі UTC (перевірка до постановки Job); Job-и генерації та індексації — одразу `failed` без ретраїв (`AdFailure::BudgetExceeded`, DLQ), індексацію наздоганяє `listings:reindex`.
+- **Rate limit пошуку:** `throttle:search`, 30/хв на IP (`SEARCH_RATE_PER_MINUTE`). `make ai-usage` — таблиця споживання за день.
+- **Terraform:** `terraform/modules/{network,iam,ec2,s3_backup}` + `envs/prod` (S3 backend з `use_lockfile`, AWS Budgets). `make tf-validate` у Docker; job `terraform` у GitHub Actions і GitLab CI.
+- **Документи:** ADR-001, 002, 003, 005; README з діаграмами Mermaid.
+
+*Known issues Дня 7:*
+- Бюджет м'який («перевірив → викликав → дописав»): перевищення до (одночасні виклики × `max_tokens`). Жорсткий варіант — резервування `max_tokens` до виклику.
+- Обірваний стрім токенів не повертає (usage приходить у фінальній події) → такі витрати не потрапляють у лічильник, видно лише в логах спроб.
+- Ліміти в токенах, а не в грошах: ціни моделей різні, переведення в $ — тиждень 2.
+
 **Чеклист безпечного старту в AWS (тиждень 3–4, новий акаунт на Free Plan)**
 1. Реєстрація на Free Plan; root — лише для білінгу, одразу MFA.
 2. IAM Identity Center або IAM-користувач із least privilege для Terraform; жодних access keys у root.
@@ -186,11 +198,12 @@ dwellio/
 5. `terraform destroy` після демо, щоб кредитів вистачило на всі 6 місяців.
 ## 5. Відкриті питання (ADR)
  
-- ADR-001: модульний моноліт.
-- ADR-002: RabbitMQ проти Redis-черг.
-- ADR-003: pgvector проти окремого vector store.
-- ADR-004: Prism проти Laravel AI SDK (Laravel 13).
-- ADR-005: `t3.micro` + swap проти `t3.small` на кредитах.
+- ~~ADR-001: модульний моноліт.~~ Прийнято.
+- ~~ADR-002: RabbitMQ проти Redis-черг.~~ Прийнято.
+- ~~ADR-003: pgvector проти окремого vector store.~~ Прийнято.
+- ~~ADR-004: Prism проти Laravel AI SDK (Laravel 13).~~ Прийнято.
+- ADR-005: Reverb і стрімінг із воркера (номер зайнято на Дні 6, див. `docs/adr/README.md`).
+- ADR-006: `t3.micro` + swap проти `t3.small` на кредитах (тиждень 3).
 ## Джерела
  
 - AWS: https://aws.amazon.com/about-aws/whats-new/2025/07/aws-free-tier-credits-month-free-plan
