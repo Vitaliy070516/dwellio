@@ -33,6 +33,7 @@
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="AI_EMBEDDING_DRIVER" value="fake"/>
         <env name="AI_LLM_DRIVER" value="fake"/>
+        <env name="AI_GENERATION_DRIVER" value="fake"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>

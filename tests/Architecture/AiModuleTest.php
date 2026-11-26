@@ -20,6 +20,17 @@ arch('AI structured-output services implement the structured-output contract')
     ])
     ->toImplement('App\Modules\AI\Contracts\StructuredOutputClient');
 
+arch('AI text-stream services implement the text-stream contract')
+    ->expect([
+        'App\Modules\AI\Services\FakeTextStreamClient',
+        'App\Modules\AI\Services\LaravelAiTextStreamClient',
+    ])
+    ->toImplement('App\Modules\AI\Contracts\TextStreamClient');
+
+arch('AI enums are backed enums')
+    ->expect('App\Modules\AI\Enums')
+    ->toBeEnums();
+
 arch('AI DTOs are immutable')
     ->expect('App\Modules\AI\DTO')
     ->toBeFinal()

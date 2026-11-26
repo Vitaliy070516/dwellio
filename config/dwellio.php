@@ -36,6 +36,33 @@ return [
             // Парсинг запиту стоїть на гарячому шляху пошуку: довго чекати не можна, є fallback.
             'timeout' => (int) env('AI_LLM_TIMEOUT', 10),
         ],
+
+        // Стрімінг тексту для генерації оголошень. Окремо від `llm`: у проді це інша модель
+        // (Sonnet замість Haiku), а таймаут — не гарячий шлях, а фонова задача.
+        // Ланцюжок таймаутів строго зростає (ADR-002): LLM 180 с < Job 240 с < воркер 270 с < stop_grace_period 300 с.
+        'generation' => [
+            'driver' => env('AI_GENERATION_DRIVER', 'laravel-ai'),
+            'provider' => env('AI_GENERATION_PROVIDER', 'ollama'),
+            'model' => env('AI_GENERATION_MODEL', 'qwen2.5:3b'),
+            'timeout' => (int) env('AI_GENERATION_TIMEOUT', 180),
+            'temperature' => 0.7,
+        ],
+    ],
+
+    'generation' => [
+        // Пауза між пакетами чанків у WebSocket: ~10 повідомлень/с на генерацію замість сотень.
+        'flush_interval_ms' => 100,
+        // Кирилиця в JSON екранується як \uXXXX (6 байт/символ); ліміт повідомлення Reverb — 10 000 байт.
+        'max_chunk_chars' => 1000,
+        // Після стількох поспіль невдалих broadcast стрім у браузер вимикається (генерація триває).
+        'max_broadcast_failures' => 3,
+        // Запис queued/processing, старший за цей час, вважається завислим і не блокує новий запит.
+        // = retryUntil() Job-а: довше Job легально жити не може.
+        'stale_after_seconds' => 900,
+        'rate_limit' => [
+            'per_minute_per_ip' => (int) env('GENERATION_RATE_PER_MINUTE', 5),
+            'per_day_global' => (int) env('GENERATION_RATE_PER_DAY', 200),
+        ],
     ],
 
     'search' => [
