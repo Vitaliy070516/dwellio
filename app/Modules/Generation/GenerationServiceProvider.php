@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Symfony\Component\HttpFoundation\Response;
 
 final class GenerationServiceProvider extends ServiceProvider
 {
@@ -42,6 +43,11 @@ final class GenerationServiceProvider extends ServiceProvider
          * Кожен POST запускає платний виклик LLM, а автентифікації немає. Тому два ліміти:
          * на IP (зловживання одним клієнтом) і глобальна денна стеля запитів. Третя лінія —
          * денний бюджет токенів (AI\Contracts\TokenBudget): ліміт запитів не знає, скільки коштує кожен.
+         *
+         * Хвилинний ліміт рахує КОЖЕН запит (захист від спаму, відповідь дешева). Денні стелі — лише
+         * прийняту роботу (202): інакше кілька IP вибирають глобальну стелю дешевими 409/422/404 (День 13),
+         * і генерація стає недоступною всім без жодного виклику LLM. Ціна — можливий перебір на кілька
+         * паралельних запитів (перевірка до, лічба після відповіді); тверда межа — бюджет токенів.
          */
         RateLimiter::for('ad-generation', static function (Request $request): array {
             $limits = [
@@ -52,16 +58,22 @@ final class GenerationServiceProvider extends ServiceProvider
                 Limit::perDay(DemoMode::limit(
                     config()->integer('dwellio.generation.rate_limit.per_day_global'),
                     'generation_per_day_global',
-                ))->by('global'),
+                ))->by('global')->after(self::accepted(...)),
             ];
 
             // Лише на демо: без автентифікації одна людина інакше вибирає глобальну денну стелю за всіх.
             $perDayPerIp = DemoMode::onlyLimit('generation_per_day_per_ip');
             if ($perDayPerIp !== null) {
-                $limits[] = Limit::perDay($perDayPerIp)->by('ip-day:'.$request->ip());
+                $limits[] = Limit::perDay($perDayPerIp)->by('ip-day:'.$request->ip())->after(self::accepted(...));
             }
 
             return $limits;
         });
+    }
+
+    /** Генерацію прийнято в чергу: лише така відповідь витрачає денну стелю. */
+    private static function accepted(Response $response): bool
+    {
+        return $response->getStatusCode() === Response::HTTP_ACCEPTED;
     }
 }

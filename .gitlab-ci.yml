@@ -68,3 +68,17 @@ pest:
   stage: test
   extends: .pgsql
   script: vendor/bin/pest
+
+# Логіка станів фронту (деградація пошуку, обрив WebSocket, помилки API): Vitest + jsdom, без браузера.
+# Свій образ і кеш: PHP і Composer тут не потрібні.
+js:
+  stage: test
+  image: node:24-alpine
+  cache:
+    key:
+      files: [package-lock.json]
+    paths: [.npm/]
+  before_script: []
+  script:
+    - npm ci --cache .npm --prefer-offline --no-audit --no-fund
+    - npm test

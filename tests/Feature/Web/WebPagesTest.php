@@ -5,9 +5,10 @@ declare(strict_types=1);
 use App\Modules\Listings\Models\Listing;
 
 /*
- * Демо-фронт. Логіку станів (деградація, обрив WebSocket) веде JS і тут не перевіряється
- * (браузерних тестів поки немає, known issue Дня 10). Тут — контракт сторінок:
- * що вони віддаються, що не розкривають зайвого і що недовірений текст екранується.
+ * Демо-фронт. Логіку станів (деградація, обрив WebSocket) перевіряють JS-тести (Vitest + jsdom,
+ * tests/js, `make test-js`) на мінімальних фікстурах розмітки. Тут — контракт сторінок:
+ * що вони віддаються, що не розкривають зайвого, що недовірений текст екранується
+ * і що фікстури JS-тестів не розійшлися зі справжнім Blade.
  */
 beforeEach(function (): void {
     $this->withoutVite();
@@ -75,3 +76,23 @@ it('returns 404 for a listing that does not exist', function (): void {
 it('redirects the old Day 6 demo page to search', function (): void {
     $this->get('/ads/demo')->assertRedirect('/');
 });
+
+/*
+ * JS-тести ганяють search.js / ad-generation.js на фікстурах tests/js/fixtures. Якщо в Blade
+ * перейменувати id чи name, JS на сторінці зламається, а JS-тести лишаться зеленими.
+ * Цей тест закриває розрив: кожен id, name, data-field і data-platform фікстури є в справжній сторінці.
+ */
+it('keeps the JS test fixtures in sync with the real pages (JS DOM contract)', function (string $fixture, Closure $url): void {
+    $page = (string) $this->get($url())->assertOk()->getContent();
+    $html = (string) file_get_contents(base_path("tests/js/fixtures/{$fixture}.html"));
+
+    preg_match_all('/(?<![\w-])(id|name|data-field|data-platform)="([^"]+)"/', $html, $matches, PREG_SET_ORDER);
+    expect($matches)->not->toBeEmpty();
+
+    foreach ($matches as [, $attribute, $value]) {
+        expect($page)->toContain(sprintf('%s="%s"', $attribute, $value));
+    }
+})->with([
+    'search' => ['search', fn (): string => '/'],
+    'listing' => ['listing', fn (): string => '/listings/'.Listing::factory()->active()->create()->id],
+]);

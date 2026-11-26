@@ -1,0 +1,16 @@
+<!--
+  Мінімальна розмітка блоку генерації для тестів JS. Id мають збігатися з
+  resources/views/web/listing.blade.php — це перевіряє Pest (WebPagesTest, «JS DOM contract»).
+-->
+<section id="ad-generator" data-listing-id="7">
+    <span id="ws-state" data-state="idle"></span>
+    <button type="button" data-platform="olx">OLX</button>
+    <button type="button" data-platform="rieltor">rieltor.ua</button>
+    <div id="ad-notice" class="hidden"></div>
+    <p id="ad-status"></p>
+    <div id="ad-result" class="hidden">
+        <h3 id="ad-title"></h3>
+        <div id="ad-body"></div>
+        <button id="ad-copy" type="button" class="hidden">Скопіювати</button>
+    </div>
+</section>

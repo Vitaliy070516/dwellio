@@ -1,0 +1,30 @@
+<!--
+  Мінімальна розмітка сторінки пошуку для тестів JS. Id і name мають збігатися з
+  resources/views/web/search.blade.php — це перевіряє Pest (WebPagesTest, «JS DOM contract»).
+-->
+<form id="search-form" novalidate>
+    <input name="q" type="search">
+    <button type="submit">Шукати</button>
+    <button type="button" data-example="тихо біля метро">тихо біля метро</button>
+    <details>
+        <input name="price_max" type="number">
+        <select name="rooms"><option value="">будь-скільки</option><option value="2">2</option></select>
+        <input name="pets_allowed" type="checkbox" value="1">
+        <input name="furnished" type="checkbox" value="1">
+    </details>
+</form>
+<div id="search-notices"></div>
+<div id="search-understood"></div>
+<p id="search-summary"></p>
+<ol id="search-results"></ol>
+<template id="listing-card">
+    <li>
+        <a data-field="link"><span data-field="title"></span></a>
+        <p><span data-field="price"></span></p>
+        <p data-field="facts"></p>
+        <p data-field="place"></p>
+        <p data-field="description"></p>
+        <div data-field="badges"></div>
+    </li>
+</template>
+<script type="application/json" id="districts-data">{"podilskyi":"Подільський"}</script>

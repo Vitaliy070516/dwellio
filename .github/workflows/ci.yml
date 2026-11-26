@@ -76,6 +76,24 @@ jobs:
       - name: Pest
         run: vendor/bin/pest
 
+  # Логіка станів фронту (деградація пошуку, обрив WebSocket, помилки API): Vitest + jsdom, без браузера.
+  # Окремий job: паралельно з PHP і без Postgres.
+  js:
+    name: JS tests (Vitest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+
+      - run: npm test
+
   terraform:
     name: Terraform fmt → validate
     runs-on: ubuntu-latest

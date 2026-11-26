@@ -252,6 +252,10 @@ async function search(params) {
 
     clearOutput();
     if ([...params.keys()].length === 0) {
+        // «Назад» на порожній `/` посеред пошуку: скасований запит виходить через AbortError і кнопку
+        // не розблоковує — без цього форма лишалась вимкненою назавжди (знайдено на Дні 13).
+        submitButton.disabled = false;
+        inFlight = null;
         return;
     }
 

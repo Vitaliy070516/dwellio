@@ -2,7 +2,7 @@
 SAIL := ./vendor/bin/sail
 
 .DEFAULT_GOAL := help
-.PHONY: help up up-ollama up-obs up-workers up-all down test stan pint pint-check artisan shell composer check queue-setup worker worker-generation workers-restart reverb-logs build reindex ai-usage search-eval search-stats openapi openapi-check demo-up demo-url demo-check demo-down tf-fmt tf-validate
+.PHONY: help up up-ollama up-obs up-workers up-all down test stan pint pint-check artisan shell composer check test-js queue-setup worker worker-generation workers-restart reverb-logs build reindex ai-usage search-eval search-stats openapi openapi-check demo-up demo-url demo-check demo-down tf-fmt tf-validate
 
 help: ## Список команд
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-12s\033[0m %s\n",$$1,$$2}'
@@ -31,13 +31,16 @@ test: ## Pest
 stan: ## PHPStan/Larastan
 	$(SAIL) php vendor/bin/phpstan analyse --memory-limit=1G
 
+test-js: ## JS-тести фронту (Vitest + jsdom): стани деградації, WebSocket, помилки API
+	$(SAIL) npm test
+
 pint: ## Pint (виправляє стиль)
 	$(SAIL) pint
 
 pint-check: ## Pint без змін файлів (для CI)
 	$(SAIL) pint --test
 
-check: pint-check stan openapi-check test ## Pint → PHPStan → OpenAPI → Pest
+check: pint-check stan openapi-check test test-js ## Pint → PHPStan → OpenAPI → Pest → JS-тести
 
 queue-setup: ## RabbitMQ: failed-exchange, DLQ і прив'язки (ідемпотентно)
 	$(SAIL) artisan dwellio:rabbitmq-setup

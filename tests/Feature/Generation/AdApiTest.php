@@ -127,6 +127,39 @@ it('rate-limits generation requests per IP', function (): void {
         ->assertJsonPath('code', 'rate_limited');
 });
 
+it('spends the daily ceiling only on accepted generations, not on cheap rejected requests', function (): void {
+    // День 13: раніше 404/409/422 теж списували глобальну денну стелю — кілька IP вимикали генерацію всім без LLM.
+    config([
+        'dwellio.generation.rate_limit.per_minute_per_ip' => 100,
+        'dwellio.generation.rate_limit.per_day_global' => 1,
+    ]);
+    $draft = Listing::factory()->create(['status' => 'draft']);
+    [$first, $second] = Listing::factory()->active()->count(2)->create();
+
+    foreach (range(1, 3) as $_) {
+        $this->postJson("/api/listings/{$draft->id}/ads", ['platform' => 'olx'])->assertNotFound();
+        $this->postJson("/api/listings/{$first->id}/ads", ['platform' => 'avito'])->assertUnprocessable();
+    }
+
+    $this->postJson("/api/listings/{$first->id}/ads", ['platform' => 'olx'])->assertAccepted();
+    // Подвійний клік: 409 стелю вже не списує, але й не проходить повз вичерпану.
+    $this->postJson("/api/listings/{$first->id}/ads", ['platform' => 'olx'])->assertTooManyRequests();
+    $this->postJson("/api/listings/{$second->id}/ads", ['platform' => 'olx'])
+        ->assertTooManyRequests()
+        ->assertJsonPath('code', 'rate_limited');
+});
+
+it('still counts every request against the per-minute limit, rejected ones included', function (): void {
+    config(['dwellio.generation.rate_limit.per_minute_per_ip' => 2]);
+    $listing = Listing::factory()->active()->create();
+
+    $this->postJson("/api/listings/{$listing->id}/ads", ['platform' => 'avito'])->assertUnprocessable();
+    $this->postJson("/api/listings/{$listing->id}/ads", ['platform' => 'avito'])->assertUnprocessable();
+    $this->postJson("/api/listings/{$listing->id}/ads", ['platform' => 'olx'])->assertTooManyRequests();
+
+    Queue::assertNothingPushed();
+});
+
 it('shows the result only to the holder of the token', function (): void {
     $ad = createAd(overrides: ['status' => AdStatus::Completed, 'title' => 'Заголовок', 'body' => 'Текст оголошення'], token: 'secret-a');
     createAd(token: 'secret-b');

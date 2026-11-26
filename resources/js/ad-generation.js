@@ -315,11 +315,30 @@ class GenerationSession {
             headers: { Accept: 'application/json', [this.meta.token_header]: this.meta.access_token },
         }).catch(() => null);
 
-        if (!res || !res.ok || this.done) {
+        if (this.done) {
             return;
         }
 
-        const { data } = await res.json();
+        // 404: генерації більше немає (квартиру видалено разом із нею) або токен не підходить.
+        // Далі опитувати марно — без цього сторінка смикала GET кожні 3–10 с назавжди (День 13).
+        if (res?.status === 404) {
+            this.finish();
+            this.ui.text('', '');
+            this.ui.notice('gone', 'error', 'Генерацію не знайдено: можливо, квартиру знято з публікації.');
+            this.ui.status('');
+            return;
+        }
+
+        if (!res || !res.ok) {
+            return;
+        }
+
+        const { data } = await res.json().catch(() => ({ data: null }));
+
+        // Два знімки можуть летіти паралельно (опитування + ad.completed): фінал обробляємо один раз.
+        if (this.done || data === null) {
+            return;
+        }
 
         if (data.status === 'completed') {
             this.finish();

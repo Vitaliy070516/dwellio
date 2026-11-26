@@ -94,6 +94,17 @@ describe('stricter limits', function (): void {
         'local' => [false, 202],
     ]);
 
+    it('does not spend the per-IP daily limit on rejected requests', function (): void {
+        enableDemo(['generation_per_minute_per_ip' => 100, 'generation_per_day_per_ip' => 1]);
+        $listing = Listing::factory()->active()->create();
+        $draft = Listing::factory()->create(['status' => 'draft']);
+
+        $this->postJson("/api/listings/{$draft->id}/ads", ['platform' => 'olx'])->assertNotFound();
+        $this->postJson("/api/listings/{$listing->id}/ads", ['platform' => 'avito'])->assertUnprocessable();
+        $this->postJson("/api/listings/{$listing->id}/ads", ['platform' => 'olx'])->assertAccepted();
+        $this->postJson("/api/listings/{$listing->id}/ads", ['platform' => 'rieltor'])->assertTooManyRequests();
+    });
+
     it('counts the per-day limit per IP: another guest is not blocked', function (): void {
         enableDemo(['generation_per_minute_per_ip' => 100, 'generation_per_day_per_ip' => 1]);
         [$first, $second] = Listing::factory()->active()->count(2)->create();
