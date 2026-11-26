@@ -152,7 +152,7 @@ make up-workers
 | Що | Адреса |
 |---|---|
 | API | `http://localhost/api` |
-| Демо генерації зі стрімінгом | `http://localhost/ads/demo` |
+| Демо: пошук і картка квартири з генерацією (потрібен `make build`) | `http://localhost/` |
 | Health check | `http://localhost/up` |
 | RabbitMQ UI | `http://localhost:15672` |
 
@@ -166,7 +166,7 @@ curl -s "http://localhost/api/search?q=$(python3 -c 'import urllib.parse;print(u
 curl -s -X POST http://localhost/api/listings/1/ads -H 'Content-Type: application/json' -d '{"platform":"olx"}'
 ```
 
-Відповідь пошуку містить `meta.mode` (`hybrid` / `text_only` / `filters_only`) і `meta.parsed_by_llm` — клієнт бачить, у якому режимі деградації відпрацював запит.
+Відповідь пошуку містить `meta.mode` (`hybrid` / `text_only` / `filters_only`), `meta.parsed_by_llm` і `meta.degraded` (`{"query_parsing": "budget_exceeded", "embeddings": null}`) — клієнт бачить не лише режим деградації, а й причину.
 Кожна квартира у видачі має `match`: які гілки її знайшли і на якій позиції (`{"matched_by": ["vector", "fts"], "ranks": {"vector": 7, "fts": 2}, "score": 0.047}`).
 
 ### Якість пошуку (офлайн-оцінка)
