@@ -97,7 +97,7 @@ sequenceDiagram
 
 ## Стек
 
-**Backend:** PHP 8.4, Laravel 13, Laravel AI SDK, Laravel Reverb · **Дані:** PostgreSQL 17 + pgvector, Redis, RabbitMQ · **AI:** Ollama (`bge-m3`, `qwen2.5:3b`) локально за $0, Anthropic Claude + Voyage AI у проді, Fake-и в тестах · **Якість:** Pest (Feature / Unit / Architecture), PHPStan `level: max`, Pint · **DevOps:** Docker / Sail, GitHub Actions + GitLab CI, Terraform (AWS), k3d (тиждень 4) · **Observability:** Prometheus, Loki, Grafana (профіль `obs`).
+**Backend:** PHP 8.4, Laravel 13, Laravel AI SDK, Laravel Reverb · **Дані:** PostgreSQL 17 + pgvector, Redis, RabbitMQ · **AI:** Ollama (`bge-m3`, `qwen2.5:3b`) локально за $0, Anthropic Claude + Voyage AI у проді, Fake-и в тестах · **Якість:** Pest (Feature / Unit / Architecture), Vitest + jsdom (фронт), PHPStan `level: max`, Pint · **DevOps:** Docker / Sail, GitHub Actions + GitLab CI, Terraform (AWS), k3d (тиждень 4) · **Observability:** Prometheus, Loki, Grafana (профіль `obs`).
 
 ## Швидкий старт
 
@@ -218,7 +218,7 @@ make search-stats
 make check
 ```
 
-`make check` = Pint → PHPStan (`max`) → Pest, ті самі стадії в [`.github/workflows/ci.yml`](.github/workflows/ci.yml) і [`.gitlab-ci.yml`](.gitlab-ci.yml) (GitLab Free отримує коміти push-дзеркалом із GitHub Actions — pull-mirroring на Free недоступний). Окремий job перевіряє Terraform (`fmt` + `validate` без AWS-акаунта).
+`make check` = Pint → PHPStan (`max`) → OpenAPI → Pest → JS-тести (Vitest), ті самі стадії в [`.github/workflows/ci.yml`](.github/workflows/ci.yml) і [`.gitlab-ci.yml`](.gitlab-ci.yml) (GitLab Free отримує коміти push-дзеркалом із GitHub Actions — pull-mirroring на Free недоступний). Окремий job перевіряє Terraform (`fmt` + `validate` без AWS-акаунта).
 
 Тести покривають неочевидні збої: падіння LLM посеред стріму, невалідний JSON від моделі, обрив з'єднання без фінальної події, дублікати повідомлень у черзі, недоступність RabbitMQ і Reverb, вичерпаний бюджет токенів.
 
