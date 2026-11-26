@@ -156,6 +156,18 @@ make up-workers
 | Health check | `http://localhost/up` |
 | RabbitMQ UI | `http://localhost:15672` |
 
+### Публічне демо через Cloudflare Tunnel
+
+```bash
+make demo-up
+```
+
+Одна команда збирає фронт, кешує конфіг у режимі `DEMO_MODE` (лише читання квартир, жорсткіші ліміти, `APP_DEBUG=false`), проганяє чеклист `demo:check`, прогріває моделі Ollama і відкриває Quick Tunnel (`*.trycloudflare.com`, без акаунта, адреса нова при кожному старті). `.env` не змінюється. Повернутися до локальної розробки:
+
+```bash
+make demo-down
+```
+
 ### Приклади API
 
 ```bash
