@@ -36,12 +36,14 @@ final class ListingController extends Controller
     }
 
     /**
-     * Laravel сам ставить 201 для щойно створеної моделі; Scramble цього не бачить, тож явно.
+     * Створити квартиру.
      *
      * @status 201
      */
     public function store(ListingRequest $request, CreateListing $action): ListingResource
     {
+        // @status 201 вище — для Scramble: Laravel сам ставить 201 щойно створеній моделі, але аналізатор цього не бачить.
+        // Перший рядок PHPDoc Scramble бере як summary в OpenAPI, тож службові нотатки — лише тут (День 14).
         return new ListingResource($action->handle($request->toData()));
     }
 

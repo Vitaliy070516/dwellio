@@ -18,8 +18,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     // POST /api/broadcasting/auth у групі `api`: stateless, без сесії й CSRF.
-    // Хто має право на канал, вирішує guard каналу (див. routes/channels.php).
-    ->withBroadcasting(__DIR__.'/../routes/channels.php', ['prefix' => 'api', 'middleware' => ['api']])
+    // Хто має право на канал, вирішує guard каналу (див. routes/channels.php); ліміт — у GenerationServiceProvider.
+    ->withBroadcasting(__DIR__.'/../routes/channels.php', [
+        'prefix' => 'api',
+        'middleware' => ['api', 'throttle:channel-auth'],
+    ])
     ->withCommands([
         __DIR__.'/../app/Shared/Console',
         __DIR__.'/../app/Modules/Listings/Console',

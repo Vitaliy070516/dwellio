@@ -47,3 +47,12 @@ it('refuses the channel without a token, with a wrong one, or with the token of 
     authorizeChannel($ad->id, 'guess')->assertForbidden();
     authorizeChannel($ad->id, 'secret-b')->assertForbidden();
 });
+
+it('throttles channel authorization per IP, so it cannot be used to hammer the token lookup', function (): void {
+    config(['dwellio.generation.rate_limit.channel_auth_per_minute_per_ip' => 2]);
+    $ad = createAd(token: 'secret-a');
+
+    authorizeChannel($ad->id, 'secret-a')->assertOk();
+    authorizeChannel($ad->id, 'guess')->assertForbidden(); // невдалі спроби теж рахуються
+    authorizeChannel($ad->id, 'secret-a')->assertTooManyRequests()->assertHeader('Retry-After');
+});

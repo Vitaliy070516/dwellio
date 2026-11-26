@@ -445,7 +445,7 @@
             },
             "post": {
                 "operationId": "listings.store",
-                "summary": "Laravel \u0441\u0430\u043c \u0441\u0442\u0430\u0432\u0438\u0442\u044c 201 \u0434\u043b\u044f \u0449\u043e\u0439\u043d\u043e \u0441\u0442\u0432\u043e\u0440\u0435\u043d\u043e\u0457 \u043c\u043e\u0434\u0435\u043b\u0456; Scramble \u0446\u044c\u043e\u0433\u043e \u043d\u0435 \u0431\u0430\u0447\u0438\u0442\u044c, \u0442\u043e\u0436 \u044f\u0432\u043d\u043e",
+                "summary": "\u0421\u0442\u0432\u043e\u0440\u0438\u0442\u0438 \u043a\u0432\u0430\u0440\u0442\u0438\u0440\u0443",
                 "tags": [
                     "Listing"
                 ],
@@ -460,7 +460,7 @@
                     }
                 },
                 "responses": {
-                    "200": {
+                    "201": {
                         "description": "`ListingResource`",
                         "content": {
                             "application/json": {

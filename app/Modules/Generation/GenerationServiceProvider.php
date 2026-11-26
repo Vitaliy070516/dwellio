@@ -49,6 +49,15 @@ final class GenerationServiceProvider extends ServiceProvider
          * і генерація стає недоступною всім без жодного виклику LLM. Ціна — можливий перебір на кілька
          * паралельних запитів (перевірка до, лічба після відповіді); тверда межа — бюджет токенів.
          */
+        /*
+         * POST /api/broadcasting/auth (День 14): токен 48 символів не підібрати, але кожен запит — пошук
+         * у БД за хешем. Echo ходить сюди раз на підписку (і після перепідключення), тож 30/хв на IP
+         * з запасом для живого браузера. 429 → Echo віддає `.error()`, фронт переходить на опитування GET.
+         */
+        RateLimiter::for('channel-auth', static fn (Request $request): Limit => Limit::perMinute(
+            config()->integer('dwellio.generation.rate_limit.channel_auth_per_minute_per_ip'),
+        )->by('ip:'.$request->ip()));
+
         RateLimiter::for('ad-generation', static function (Request $request): array {
             $limits = [
                 Limit::perMinute(DemoMode::limit(

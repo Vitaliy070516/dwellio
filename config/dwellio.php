@@ -106,6 +106,8 @@ return [
         'rate_limit' => [
             'per_minute_per_ip' => (int) env('GENERATION_RATE_PER_MINUTE', 5),
             'per_day_global' => (int) env('GENERATION_RATE_PER_DAY', 200),
+            // Авторизація WebSocket-каналу: раз на підписку, тому стеля висока, але не нескінченна.
+            'channel_auth_per_minute_per_ip' => (int) env('CHANNEL_AUTH_RATE_PER_MINUTE', 30),
         ],
     ],
 
