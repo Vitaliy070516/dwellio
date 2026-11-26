@@ -17,6 +17,8 @@ enum AdFailure: string
     case ListingUnavailable = 'listing_unavailable';
     /** Не вдалося поставити Job у RabbitMQ: без Job результату не буде. */
     case QueueUnavailable = 'queue_unavailable';
+    /** Денний бюджет токенів вичерпано, поки Job чекав у черзі: провайдера не викликали. */
+    case BudgetExceeded = 'budget_exceeded';
     /** Запис завис у queued/processing довше за ліміт (воркер помер). */
     case Stale = 'stale';
     case Unknown = 'unknown';

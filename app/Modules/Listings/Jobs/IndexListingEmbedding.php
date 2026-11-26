@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Listings\Jobs;
 
 use App\Modules\AI\Exceptions\InvalidEmbeddingException;
+use App\Modules\AI\Exceptions\TokenBudgetExceededException;
 use App\Modules\Listings\Actions\EmbedListing;
 use App\Modules\Listings\Models\Listing;
 use DateTimeInterface;
@@ -20,6 +21,8 @@ use Throwable;
  * Повтори: збій провайдера кидає виняток, воркер повторює з наростаючою паузою (backoff).
  * Після 3 винятків або 15 хвилин Job падає, і RabbitMQ через DLX кладе його в `embeddings.failed`.
  * Постійні помилки (InvalidEmbeddingException) падають одразу, без повторів.
+ * Вичерпаний денний бюджет — теж одразу в DLQ: retryUntil (15 хв) до півночі не дотягне,
+ * а `listings:reindex` наступного дня підбере квартири без ембединга (зі зміненим текстом — `--all`).
  */
 final class IndexListingEmbedding implements ShouldQueue
 {
@@ -78,7 +81,7 @@ final class IndexListingEmbedding implements ShouldQueue
 
         try {
             $outcome = $embed->handle($listing);
-        } catch (InvalidEmbeddingException $e) {
+        } catch (InvalidEmbeddingException|TokenBudgetExceededException $e) {
             // Повтор не допоможе (наприклад, вектор неправильної розмірності): одразу в DLQ.
             $this->fail($e);
 

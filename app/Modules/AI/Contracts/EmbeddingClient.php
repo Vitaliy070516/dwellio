@@ -7,6 +7,7 @@ namespace App\Modules\AI\Contracts;
 use App\Modules\AI\DTO\Embedding;
 use App\Modules\AI\Exceptions\EmbeddingFailedException;
 use App\Modules\AI\Exceptions\InvalidEmbeddingException;
+use App\Modules\AI\Exceptions\TokenBudgetExceededException;
 
 /**
  * Єдина точка входу до векторизації для решти модулів (ADR-004).
@@ -23,6 +24,7 @@ interface EmbeddingClient
     /**
      * @throws EmbeddingFailedException якщо збій тимчасовий (мережа, 5xx, ліміти): Job може повторити спробу
      * @throws InvalidEmbeddingException якщо повтор не допоможе (порожній текст, неправильна розмірність)
+     * @throws TokenBudgetExceededException денний бюджет вичерпано, провайдера не викликали
      */
     public function embed(string $text): Embedding;
 }

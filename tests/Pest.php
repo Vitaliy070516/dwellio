@@ -2,9 +2,8 @@
 
 declare(strict_types=1);
 
-use App\Modules\AI\Contracts\EmbeddingClient;
-use App\Modules\AI\Contracts\StructuredOutputClient;
-use App\Modules\AI\Contracts\TextStreamClient;
+use App\Modules\AI\Contracts\TokenBudget;
+use App\Modules\AI\Enums\AiPurpose;
 use App\Modules\AI\Services\FakeEmbeddingClient;
 use App\Modules\AI\Services\FakeStructuredOutputClient;
 use App\Modules\AI\Services\FakeTextStreamClient;
@@ -55,28 +54,30 @@ function listingPayload(array $overrides = []): array
     ], $overrides);
 }
 
+/*
+ * Контракти AI резолвляться в Budgeted-декоратори; Fake під ними — окремий singleton.
+ * Налаштовуємо Fake тут, а виклики з коду все одно йдуть через облік токенів.
+ */
 function fakeEmbeddingClient(): FakeEmbeddingClient
 {
-    $client = app(EmbeddingClient::class);
-    assert($client instanceof FakeEmbeddingClient);
-
-    return $client;
+    return app(FakeEmbeddingClient::class);
 }
 
 function fakeLlm(): FakeStructuredOutputClient
 {
-    $client = app(StructuredOutputClient::class);
-    assert($client instanceof FakeStructuredOutputClient);
-
-    return $client;
+    return app(FakeStructuredOutputClient::class);
 }
 
 function fakeTextStream(): FakeTextStreamClient
 {
-    $client = app(TextStreamClient::class);
-    assert($client instanceof FakeTextStreamClient);
+    return app(FakeTextStreamClient::class);
+}
 
-    return $client;
+/** Вичерпати денний бюджет цілі, не роблячи жодного виклику провайдера. */
+function exhaustTokenBudget(AiPurpose $purpose): void
+{
+    $budget = app(TokenBudget::class);
+    $budget->record($purpose, $budget->usage($purpose)->dailyLimit, 0);
 }
 
 /**

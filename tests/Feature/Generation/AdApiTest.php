@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Modules\AI\Enums\AiPurpose;
 use App\Modules\Generation\Enums\AdFailure;
 use App\Modules\Generation\Enums\AdStatus;
 use App\Modules\Generation\Jobs\GenerateListingAdJob;
@@ -138,4 +139,16 @@ it('shows the result only to the holder of the token', function (): void {
 
 it('answers 404, not 500, for a malformed id', function (): void {
     $this->getJson('/api/listing-ads/not-a-uuid', ['X-Ad-Token' => 'test-token'])->assertNotFound();
+});
+
+it('answers 503 with Retry-After and queues nothing once the daily generation budget is spent', function (): void {
+    $listing = Listing::factory()->active()->create();
+    exhaustTokenBudget(AiPurpose::Generation);
+
+    $response = $this->postJson("/api/listings/{$listing->id}/ads", ['platform' => 'olx'])
+        ->assertServiceUnavailable();
+
+    expect((int) $response->headers->get('Retry-After'))->toBeGreaterThan(0)->toBeLessThanOrEqual(86400);
+    $this->assertDatabaseCount('listing_ads', 0);
+    Queue::assertNothingPushed();
 });

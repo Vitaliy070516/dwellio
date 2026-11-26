@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Modules\AI\Enums\AiPurpose;
 use App\Modules\Listings\Actions\EmbedListing;
 use App\Modules\Listings\Enums\ListingStatus;
 use App\Modules\Listings\Models\Listing;
@@ -41,3 +42,40 @@ it('validates input', function (string $query): void {
     'bad limit' => ['q=x&limit=500'],
     'negative price' => ['q=x&price_max=-1'],
 ]);
+
+it('keeps searching without the LLM once the query-parsing budget is exhausted', function (): void {
+    $listing = Listing::factory()->create(['status' => ListingStatus::Active, 'title' => 'Тиха', 'description' => 'квартира з котом']);
+    app(EmbedListing::class)->handle($listing);
+    exhaustTokenBudget(AiPurpose::QueryParsing);
+
+    $this->getJson('/api/search?q='.urlencode('квартира з котом'))
+        ->assertOk()
+        ->assertJsonPath('meta.parsed_by_llm', false)
+        ->assertJsonPath('data.0.id', $listing->id);
+
+    expect(fakeLlm()->prompts())->toBe([]);
+});
+
+it('degrades to text-only search once the embeddings budget is exhausted', function (): void {
+    $listing = Listing::factory()->create(['status' => ListingStatus::Active, 'title' => 'Тиха', 'description' => 'квартира з котом']);
+    exhaustTokenBudget(AiPurpose::Embeddings);
+    fakeLlm()->respondWith(['semantic_query' => 'квартира котом']);
+
+    $this->getJson('/api/search?q='.urlencode('квартира з котом'))
+        ->assertOk()
+        ->assertJsonPath('meta.mode', 'text_only')
+        ->assertJsonPath('data.0.id', $listing->id);
+
+    expect(fakeEmbeddingClient()->embeddedTexts())->toBe([]);
+});
+
+it('rate-limits search per IP', function (): void {
+    config(['dwellio.search.rate_limit.per_minute_per_ip' => 2]);
+
+    $this->getJson('/api/search?rooms[]=2')->assertOk();
+    $this->getJson('/api/search?rooms[]=2')->assertOk();
+    $this->getJson('/api/search?rooms[]=2')->assertTooManyRequests();
+
+    // Інший IP має власний лічильник.
+    $this->withServerVariables(['REMOTE_ADDR' => '10.0.0.2'])->getJson('/api/search?rooms[]=2')->assertOk();
+});

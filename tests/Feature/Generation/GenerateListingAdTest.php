@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 use App\Modules\AI\Contracts\TextStreamClient;
 use App\Modules\AI\DTO\TextStreamResult;
+use App\Modules\AI\Enums\AiPurpose;
 use App\Modules\AI\Enums\FinishReason;
 use App\Modules\AI\Exceptions\TextStreamFailedException;
+use App\Modules\AI\Exceptions\TokenBudgetExceededException;
 use App\Modules\AI\Services\FakeTextStreamClient;
 use App\Modules\Generation\Actions\GenerateListingAd;
 use App\Modules\Generation\Enums\AdFailure;
@@ -151,11 +153,26 @@ it('marks the ad failed with a machine-readable code when the job gives up', fun
     expect($ad->refresh()->status)->toBe(AdStatus::Failed)->and($ad->failure_code)->toBe($failure);
     Event::assertDispatched(AdGenerationFailed::class, fn (AdGenerationFailed $e): bool => $e->failure === $failure);
 })->with([
+    'budget spent' => [new TokenBudgetExceededException(AiPurpose::Generation, 60), AdFailure::BudgetExceeded],
     'provider down' => [new TextStreamFailedException('down'), AdFailure::ProviderUnavailable],
     'bad output' => [new InvalidAdOutputException('bad'), AdFailure::InvalidOutput],
     'timeout' => [new TimeoutExceededException('slow'), AdFailure::Timeout],
     'unexpected' => [new LogicException('bug'), AdFailure::Unknown],
 ]);
+
+it('fails at once, without retries or a started event, when the budget ran out while the job was queued', function () use ($adEvents): void {
+    Event::fake($adEvents);
+    $ad = createAd();
+    exhaustTokenBudget(AiPurpose::Generation);
+
+    $job = (new GenerateListingAdJob($ad->id))->withFakeQueueInteractions();
+    $job->handle(app(GenerateListingAd::class));
+
+    $job->assertFailed();
+    expect(fakeTextStream()->calls())->toBe([])
+        ->and($ad->refresh()->attempt)->toBe(0);
+    Event::assertNotDispatched(AdGenerationStarted::class);
+});
 
 it('does not let a late failure overwrite a completed ad', function () use ($adEvents): void {
     Event::fake($adEvents);

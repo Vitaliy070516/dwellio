@@ -8,6 +8,7 @@ use App\Modules\AI\Contracts\EmbeddingClient;
 use App\Modules\AI\DTO\Embedding;
 use App\Modules\AI\Exceptions\EmbeddingFailedException;
 use App\Modules\AI\Exceptions\InvalidEmbeddingException;
+use App\Modules\AI\Exceptions\TokenBudgetExceededException;
 use App\Modules\Listings\Models\Listing;
 use App\Modules\Search\DTO\ParsedQuery;
 use App\Modules\Search\DTO\SearchFilters;
@@ -81,7 +82,7 @@ final readonly class SearchListings
 
         try {
             $embedding = $this->embeddings->embed($text);
-        } catch (EmbeddingFailedException|InvalidEmbeddingException $e) {
+        } catch (EmbeddingFailedException|InvalidEmbeddingException|TokenBudgetExceededException $e) {
             Log::warning('Query embedding failed, falling back to text-only search.', ['error' => $e->getMessage()]);
 
             return null;

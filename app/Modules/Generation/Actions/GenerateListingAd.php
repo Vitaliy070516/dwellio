@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace App\Modules\Generation\Actions;
 
 use App\Modules\AI\Contracts\TextStreamClient;
+use App\Modules\AI\Contracts\TokenBudget;
 use App\Modules\AI\DTO\TextStreamResult;
+use App\Modules\AI\Enums\AiPurpose;
 use App\Modules\AI\Enums\FinishReason;
 use App\Modules\AI\Exceptions\TextStreamFailedException;
+use App\Modules\AI\Exceptions\TokenBudgetExceededException;
 use App\Modules\Generation\DTO\GeneratedAd;
 use App\Modules\Generation\Enums\AdFailure;
 use App\Modules\Generation\Enums\AdStatus;
@@ -36,8 +39,10 @@ final readonly class GenerateListingAd
         private AdPrompt $prompt,
         private AdTextParser $parser,
         private Dispatcher $events,
+        private TokenBudget $budget,
     ) {}
 
+    /** @throws TokenBudgetExceededException бюджет скінчився, поки Job чекав у черзі */
     public function handle(string $adId): void
     {
         $ad = ListingAd::query()->find($adId);
@@ -56,6 +61,9 @@ final readonly class GenerateListingAd
 
             return;
         }
+
+        // До claim: якщо платити нічим, не чіпаємо attempt і не шлемо браузеру `ad.started`.
+        $this->budget->ensureAvailable(AiPurpose::Generation);
 
         $attempt = $ad->attempt + 1;
 

@@ -7,6 +7,7 @@ namespace App\Modules\Listings\Actions;
 use App\Modules\AI\Contracts\EmbeddingClient;
 use App\Modules\AI\Exceptions\EmbeddingFailedException;
 use App\Modules\AI\Exceptions\InvalidEmbeddingException;
+use App\Modules\AI\Exceptions\TokenBudgetExceededException;
 use App\Modules\Listings\Enums\EmbedOutcome;
 use App\Modules\Listings\Models\Listing;
 use Illuminate\Support\Facades\DB;
@@ -22,6 +23,7 @@ final readonly class EmbedListing
     /**
      * @throws EmbeddingFailedException тимчасовий збій провайдера, Job повторить спробу
      * @throws InvalidEmbeddingException постійна помилка, Job зупиниться без повторів
+     * @throws TokenBudgetExceededException денний бюджет вичерпано, провайдера не викликали
      */
     public function handle(Listing $listing): EmbedOutcome
     {

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Generation\Jobs;
 
 use App\Modules\AI\Exceptions\TextStreamFailedException;
+use App\Modules\AI\Exceptions\TokenBudgetExceededException;
 use App\Modules\Generation\Actions\GenerateListingAd;
 use App\Modules\Generation\Enums\AdFailure;
 use App\Modules\Generation\Exceptions\InvalidAdOutputException;
@@ -74,12 +75,18 @@ final class GenerateListingAdJob implements ShouldQueue
 
     public function handle(GenerateListingAd $generate): void
     {
-        $generate->handle($this->adId);
+        try {
+            $generate->handle($this->adId);
+        } catch (TokenBudgetExceededException $e) {
+            // До опівночі UTC повтор нічого не дасть: одразу failed(), без ретраїв і без очікування в черзі.
+            $this->fail($e);
+        }
     }
 
     public function failed(Throwable $exception): void
     {
         $failure = match (true) {
+            $exception instanceof TokenBudgetExceededException => AdFailure::BudgetExceeded,
             $exception instanceof TextStreamFailedException => AdFailure::ProviderUnavailable,
             $exception instanceof InvalidAdOutputException => AdFailure::InvalidOutput,
             $exception instanceof TimeoutExceededException,

@@ -6,6 +6,7 @@ namespace App\Modules\AI\Contracts;
 
 use App\Modules\AI\DTO\TextStreamResult;
 use App\Modules\AI\Exceptions\TextStreamFailedException;
+use App\Modules\AI\Exceptions\TokenBudgetExceededException;
 use Generator;
 
 /**
@@ -20,6 +21,7 @@ interface TextStreamClient
      * @return Generator<int, string, mixed, TextStreamResult>
      *
      * @throws TextStreamFailedException збій провайдера, мережі або обрив посеред стріму
+     * @throws TokenBudgetExceededException денний бюджет вичерпано (кидається на першій ітерації)
      */
     public function stream(string $instructions, string $prompt, int $maxTokens): Generator;
 }

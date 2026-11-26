@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Modules\AI\Enums\AiPurpose;
 use App\Modules\AI\Exceptions\EmbeddingFailedException;
 use App\Modules\AI\Exceptions\InvalidEmbeddingException;
 use App\Modules\Listings\Actions\EmbedListing;
@@ -73,6 +74,18 @@ it('fails permanently, without retries, on an invalid embedding', function (): v
     $job->handle(app(EmbedListing::class));
 
     $job->assertFailed();
+    $this->assertDatabaseCount('listing_embeddings', 0);
+});
+
+it('fails at once, without retries, when the embeddings budget is spent (reindex picks it up tomorrow)', function (): void {
+    $listing = Listing::factory()->active()->create();
+    exhaustTokenBudget(AiPurpose::Embeddings);
+
+    $job = (new IndexListingEmbedding($listing->id))->withFakeQueueInteractions();
+    $job->handle(app(EmbedListing::class));
+
+    $job->assertFailed();
+    expect(fakeEmbeddingClient()->embeddedTexts())->toBe([]);
     $this->assertDatabaseCount('listing_embeddings', 0);
 });
 

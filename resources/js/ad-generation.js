@@ -25,6 +25,7 @@ const FAILURE_TEXT = {
     timeout: 'Генерація тривала задовго.',
     listing_unavailable: 'Квартира більше недоступна.',
     queue_unavailable: 'Черга недоступна.',
+    budget_exceeded: 'Денний бюджет AI вичерпано, спробуйте завтра.',
     stale: 'Генерація зависла.',
     unknown: 'Невідома помилка.',
 };

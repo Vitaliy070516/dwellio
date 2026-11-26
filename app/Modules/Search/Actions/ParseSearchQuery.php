@@ -6,6 +6,7 @@ namespace App\Modules\Search\Actions;
 
 use App\Modules\AI\Contracts\StructuredOutputClient;
 use App\Modules\AI\Exceptions\StructuredOutputFailedException;
+use App\Modules\AI\Exceptions\TokenBudgetExceededException;
 use App\Modules\Listings\Enums\District;
 use App\Modules\Search\DTO\ParsedQuery;
 use App\Modules\Search\DTO\SearchFilters;
@@ -44,8 +45,9 @@ final readonly class ParseSearchQuery
         }
 
         try {
-            $raw = $this->llm->generate(self::instructions(), $query, static fn (JsonSchema $schema): array => self::schema($schema));
-        } catch (StructuredOutputFailedException $e) {
+            $raw = $this->llm->generate(self::instructions(), $query, static fn (JsonSchema $schema): array => self::schema($schema))->data;
+        } catch (StructuredOutputFailedException|TokenBudgetExceededException $e) {
+            // Вичерпаний бюджет — та сама деградація, що й падіння провайдера: пошук працює без LLM.
             Log::warning('Search query parsing failed, falling back to plain text search.', ['error' => $e->getMessage()]);
 
             return $this->fallback($query);

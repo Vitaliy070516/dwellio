@@ -47,6 +47,22 @@ return [
             'timeout' => (int) env('AI_GENERATION_TIMEOUT', 180),
             'temperature' => 0.7,
         ],
+
+        /*
+        | Денна стеля токенів (input + output) на кожну ціль, лічильники в Redis (ключі ai:tokens:*).
+        | Скидається опівночі UTC. Вичерпано → провайдера не викликаємо: пошук деградує до SQL/FTS,
+        | генерація відповідає 503 з Retry-After. Окремі бюджети = переіндексація не «з'їсть» генерацію.
+        | Орієнтир для Claude Haiku: 500k токенів ≈ $0.5–2 на день (перевіряйте актуальні ціни).
+        */
+        'budget' => [
+            // null = сховище кешу за замовчуванням (CACHE_STORE=redis); у тестах — array.
+            'store' => env('AI_BUDGET_CACHE_STORE'),
+            'daily_tokens' => [
+                'embeddings' => (int) env('AI_BUDGET_EMBEDDINGS_DAILY', 2_000_000),
+                'query_parsing' => (int) env('AI_BUDGET_QUERY_PARSING_DAILY', 500_000),
+                'generation' => (int) env('AI_BUDGET_GENERATION_DAILY', 1_000_000),
+            ],
+        ],
     ],
 
     'generation' => [
@@ -72,6 +88,10 @@ return [
         'rrf_k' => 60,
         'per_page' => 20,
         'query_embedding_ttl' => 86400,
+        // Кожен некешований запит = виклик LLM + ембединг. Ліміт на IP захищає бюджет від одного клієнта.
+        'rate_limit' => [
+            'per_minute_per_ip' => (int) env('SEARCH_RATE_PER_MINUTE', 30),
+        ],
     ],
 
 ];

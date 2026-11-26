@@ -6,6 +6,7 @@ use App\Modules\AI\Contracts\TextStreamClient;
 use App\Modules\AI\DTO\TextStreamResult;
 use App\Modules\AI\Enums\FinishReason;
 use App\Modules\AI\Exceptions\TextStreamFailedException;
+use App\Modules\AI\Services\BudgetedTextStreamClient;
 use App\Modules\AI\Services\FakeTextStreamClient;
 use App\Modules\AI\Services\LaravelAiTextStreamClient;
 use App\Modules\AI\Services\TextStreamAgent;
@@ -47,7 +48,10 @@ it('maps unknown provider finish reasons to Unknown, never to success', function
 })->with(['tool_calls', 'cancelled', 'error', '']);
 
 it('resolves the fake client in tests so no test can reach a real LLM', function (): void {
-    expect(app(TextStreamClient::class))->toBeInstanceOf(FakeTextStreamClient::class);
+    $client = app(TextStreamClient::class);
+
+    expect($client)->toBeInstanceOf(BudgetedTextStreamClient::class)
+        ->and($client->inner)->toBeInstanceOf(FakeTextStreamClient::class);
 });
 
 it('refuses an unknown generation driver loudly', function (): void {

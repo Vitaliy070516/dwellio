@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Modules\Generation\Actions;
 
+use App\Modules\AI\Contracts\TokenBudget;
+use App\Modules\AI\Enums\AiPurpose;
+use App\Modules\AI\Exceptions\TokenBudgetExceededException;
 use App\Modules\Generation\DTO\RequestedAd;
 use App\Modules\Generation\Enums\AdFailure;
 use App\Modules\Generation\Enums\AdStatus;
@@ -25,11 +28,19 @@ use Throwable;
  * Дублікати: частковий унікальний індекс пропускає лише одну активну генерацію на квартиру
  * й майданчик, тож подвійний клік не оплачує два виклики LLM. Повернути той самий токен
  * неможливо (зберігається лише хеш), тому дублікат отримує 409, а не «той самий» запис.
+ *
+ * Бюджет токенів перевіряємо вже тут: краще одразу відповісти 503, ніж прийняти роботу (202),
+ * яку воркер усе одно відхилить. Воркер перевіряє ще раз — бюджет міг скінчитись, поки Job чекав.
  */
 final readonly class RequestListingAd
 {
+    public function __construct(private TokenBudget $budget) {}
+
+    /** @throws TokenBudgetExceededException */
     public function handle(Listing $listing, Platform $platform): RequestedAd
     {
+        $this->budget->ensureAvailable(AiPurpose::Generation);
+
         $token = Str::random(48);
 
         try {

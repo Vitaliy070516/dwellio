@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\AI\Services;
 
 use App\Modules\AI\Contracts\StructuredOutputClient;
+use App\Modules\AI\DTO\StructuredOutput;
 use App\Modules\AI\Exceptions\StructuredOutputFailedException;
 use Closure;
 use Throwable;
@@ -20,7 +21,7 @@ final readonly class LaravelAiStructuredOutputClient implements StructuredOutput
         private int $timeout = 30,
     ) {}
 
-    public function generate(string $instructions, string $prompt, Closure $schema): array
+    public function generate(string $instructions, string $prompt, Closure $schema): StructuredOutput
     {
         try {
             $response = agent(instructions: $instructions, schema: $schema)
@@ -38,6 +39,11 @@ final readonly class LaravelAiStructuredOutputClient implements StructuredOutput
             $structured[(string) $key] = $value;
         }
 
-        return $structured;
+        return new StructuredOutput(
+            $structured,
+            $response->meta->model ?? $this->model,
+            $response->usage->inputTokens,
+            $response->usage->outputTokens,
+        );
     }
 }

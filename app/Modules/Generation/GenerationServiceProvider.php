@@ -39,8 +39,8 @@ final class GenerationServiceProvider extends ServiceProvider
 
         /*
          * Кожен POST запускає платний виклик LLM, а автентифікації немає. Тому два ліміти:
-         * на IP (зловживання одним клієнтом) і глобальна денна стеля (FinOps-запобіжник).
-         * Облік токенів у Redis — День 7.
+         * на IP (зловживання одним клієнтом) і глобальна денна стеля запитів. Третя лінія —
+         * денний бюджет токенів (AI\Contracts\TokenBudget): ліміт запитів не знає, скільки коштує кожен.
          */
         RateLimiter::for('ad-generation', static fn (Request $request): array => [
             Limit::perMinute(config()->integer('dwellio.generation.rate_limit.per_minute_per_ip'))

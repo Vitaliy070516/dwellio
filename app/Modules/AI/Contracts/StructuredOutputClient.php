@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Modules\AI\Contracts;
 
+use App\Modules\AI\DTO\StructuredOutput;
 use App\Modules\AI\Exceptions\StructuredOutputFailedException;
+use App\Modules\AI\Exceptions\TokenBudgetExceededException;
 use Closure;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\JsonSchema\Types\Type;
@@ -18,9 +20,9 @@ interface StructuredOutputClient
 {
     /**
      * @param  Closure(JsonSchema): array<string, Type>  $schema
-     * @return array<string, mixed> відповідь моделі; НЕ довіряємо їй, викликач валідує сам
      *
      * @throws StructuredOutputFailedException
+     * @throws TokenBudgetExceededException денний бюджет вичерпано, провайдера не викликали
      */
-    public function generate(string $instructions, string $prompt, Closure $schema): array;
+    public function generate(string $instructions, string $prompt, Closure $schema): StructuredOutput;
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Generation\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\AI\Exceptions\TokenBudgetExceededException;
 use App\Modules\Generation\Actions\RequestListingAd;
 use App\Modules\Generation\Exceptions\AdGenerationInProgressException;
 use App\Modules\Generation\Exceptions\AdQueueUnavailableException;
@@ -29,6 +30,9 @@ final class AdController extends Controller
             abort(409, 'Ad generation for this listing and platform is already in progress.');
         } catch (AdQueueUnavailableException) {
             abort(503, 'Ad generation is temporarily unavailable. Try again later.');
+        } catch (TokenBudgetExceededException $e) {
+            // 503, а не 429: вичерпано спільний бюджет сервісу, а не ліміт конкретного клієнта.
+            abort(503, 'Daily AI budget is exhausted. Try again tomorrow.', ['Retry-After' => (string) $e->retryAfterSeconds]);
         }
 
         // 202 Accepted: роботу прийнято, результат буде пізніше (WebSocket + GET).

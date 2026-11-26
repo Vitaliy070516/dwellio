@@ -11,8 +11,10 @@ use Illuminate\Support\Facades\Route;
 Route::apiResource('listings', ListingController::class)->except('update');
 Route::put('listings/{listing}', [ListingController::class, 'update'])->name('listings.update');
 
-// GET: пошук ідемпотентний і кешований. Rate limit (токени LLM) додається на Дні 7.
-Route::get('search', SearchController::class)->name('search');
+// GET: пошук ідемпотентний і кешований. Throttle на IP + денний бюджет токенів у модулі AI.
+Route::get('search', SearchController::class)
+    ->middleware('throttle:search')
+    ->name('search');
 
 // Генерація оголошень: POST ставить Job у чергу (202), прогрес іде у WebSocket, результат — через GET.
 Route::post('listings/{listing}/ads', [AdController::class, 'store'])

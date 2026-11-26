@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\AI\Services;
 
 use App\Modules\AI\Contracts\StructuredOutputClient;
+use App\Modules\AI\DTO\StructuredOutput;
 use Closure;
 use Throwable;
 
@@ -14,6 +15,8 @@ use Throwable;
  */
 final class FakeStructuredOutputClient implements StructuredOutputClient
 {
+    public const string MODEL = 'fake-structured';
+
     /** @var array<string, mixed> */
     private array $response = [];
 
@@ -44,7 +47,7 @@ final class FakeStructuredOutputClient implements StructuredOutputClient
         return $this->prompts;
     }
 
-    public function generate(string $instructions, string $prompt, Closure $schema): array
+    public function generate(string $instructions, string $prompt, Closure $schema): StructuredOutput
     {
         $this->prompts[] = $prompt;
 
@@ -55,6 +58,7 @@ final class FakeStructuredOutputClient implements StructuredOutputClient
             throw $failure;
         }
 
-        return $this->response;
+        // Грубо 4 символи на токен: досить, щоб тести обліку бачили ненульові числа.
+        return new StructuredOutput($this->response, self::MODEL, max(1, intdiv(mb_strlen($prompt), 4)), count($this->response));
     }
 }
