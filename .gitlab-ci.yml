@@ -10,6 +10,9 @@ default:
     - apt-get update -qq && apt-get install -y -qq git unzip libpq-dev libicu-dev >/dev/null
     # sockets потрібен php-amqplib (драйвер RabbitMQ); у php:8.4-cli його немає, а в GitHub-раннері є.
     - docker-php-ext-install pdo_pgsql intl sockets >/dev/null
+    # У php:8.4-cli немає php.ini → memory_limit 128M, і arch-тести Pest (php-parser по всьому app/) падають
+    # з "Allowed memory size exhausted". Той самий ліміт, що й у GitHub Actions: паритет середовищ.
+    - echo "memory_limit=512M" > /usr/local/etc/php/conf.d/zz-ci.ini
     - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
     - composer install --no-interaction --prefer-dist --no-progress
     - cp .env.example .env && php artisan key:generate

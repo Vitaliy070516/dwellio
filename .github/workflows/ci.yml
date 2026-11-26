@@ -43,6 +43,9 @@ jobs:
           php-version: '8.4'
           # Перелік явний і збігається з .gitlab-ci.yml: sockets потрібен php-amqplib (RabbitMQ).
           extensions: pdo_pgsql, redis, mbstring, intl, sockets
+          # setup-php за замовчуванням дає -1 (без ліміту) і ховає ріст пам'яті тестів;
+          # 512M — як у .gitlab-ci.yml, щоб обидва CI падали однаково.
+          ini-values: memory_limit=512M
           coverage: none
 
       - name: Composer cache
