@@ -10,10 +10,6 @@ use App\Modules\Listings\Models\Listing;
  * що вони віддаються, що не розкривають зайвого, що недовірений текст екранується
  * і що фікстури JS-тестів не розійшлися зі справжнім Blade.
  */
-beforeEach(function (): void {
-    $this->withoutVite();
-});
-
 it('renders the search page shell with the card template and district labels', function (): void {
     $html = $this->get('/')
         ->assertOk()

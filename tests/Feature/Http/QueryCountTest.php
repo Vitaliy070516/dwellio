@@ -25,9 +25,12 @@ function countQueries(Closure $request): int
     return $count;
 }
 
-function makeSearchableListings(int $count): void
+/** @param  array<string, mixed>  $attributes */
+function makeSearchableListings(int $count, array $attributes = []): void
 {
-    foreach (Listing::factory()->active()->count($count)->create(['description' => 'тиха квартира з котом']) as $listing) {
+    $attributes = ['description' => 'тиха квартира з котом', ...$attributes];
+
+    foreach (Listing::factory()->active()->count($count)->create($attributes) as $listing) {
         app(EmbedListing::class)->handle($listing);
     }
 }
@@ -58,11 +61,16 @@ it('serves a hybrid search with a constant number of queries', function (): void
 });
 
 it('serves a filters-only search with a constant number of queries', function (): void {
-    makeSearchableListings(2);
-    $few = countQueries(fn () => $this->getJson('/api/search?pets_allowed=1&rooms[]=1&rooms[]=2&rooms[]=3&rooms[]=4&rooms[]=5')->assertOk());
+    // Квартири явно проходять фільтр: з випадковими pets_allowed/rooms із фабрики перший пошук іноді
+    // нічого не знаходив, гідрації не було (1 запит замість 2) — і тест падав через раз.
+    $matching = ['pets_allowed' => true, 'rooms' => 2];
+    $url = '/api/search?pets_allowed=1&rooms[]=1&rooms[]=2&rooms[]=3&rooms[]=4&rooms[]=5';
 
-    makeSearchableListings(10);
-    $many = countQueries(fn () => $this->getJson('/api/search?pets_allowed=1&rooms[]=1&rooms[]=2&rooms[]=3&rooms[]=4&rooms[]=5')->assertOk());
+    makeSearchableListings(2, $matching);
+    $few = countQueries(fn () => $this->getJson($url)->assertOk()->assertJsonCount(2, 'data'));
+
+    makeSearchableListings(10, $matching);
+    $many = countQueries(fn () => $this->getJson($url)->assertOk()->assertJsonCount(12, 'data'));
 
     expect($many)->toBe($few);
 });

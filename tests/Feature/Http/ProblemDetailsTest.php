@@ -92,8 +92,6 @@ it('hides the text of an unexpected exception unless debug is on', function (boo
 ]);
 
 it('leaves demo web pages as HTML', function (): void {
-    $this->withoutVite();
-
     $this->get('/listings/999999')
         ->assertNotFound()
         ->assertHeader('Content-Type', 'text/html; charset=utf-8');

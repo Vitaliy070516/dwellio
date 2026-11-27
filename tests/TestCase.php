@@ -11,6 +11,19 @@ use RuntimeException;
 abstract class TestCase extends BaseTestCase
 {
     /**
+     * HTML-сторінки підключають @vite, а public/build є лише там, де хтось запускав `npm run build`.
+     * Локально тест зеленіє через старий білд, у CI (без білда) — 500. Вимикаємо для всіх тестів одразу,
+     * щоб новий тест сторінки не залежав від того, чи не забули тут викликати withoutVite().
+     * Логіку фронту перевіряє окремий job Vitest; сам `npm run build` у CI поки не запускається.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->withoutVite();
+    }
+
+    /**
      * Кешований конфіг ігнорує <env> з phpunit.xml: тести пішли б у справжню БД, і RefreshDatabase
      * стер би її. Перевіряємо тут, а не в setUp(): трейти (RefreshDatabase) запускаються ще в parent::setUp().
      */

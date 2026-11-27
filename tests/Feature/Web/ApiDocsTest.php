@@ -19,8 +19,6 @@ function committedSpec(): array
 }
 
 it('serves Swagger UI pointing at the committed spec', function (): void {
-    $this->withoutVite();
-
     $this->get('/docs/api')
         ->assertOk()
         ->assertSee('id="swagger-ui"', false)
